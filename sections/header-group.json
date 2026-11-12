@@ -55,8 +55,8 @@
         "padding_bottom": 20
       }
     },
-    "custom_heador_ChgPCm": {
-      "type": "custom-heador",
+    "custom_header_qLXNBF": {
+      "type": "custom-header",
       "name": "Custom Header",
       "settings": {
         "logo_width": 160,
@@ -74,10 +74,6 @@
         "button_new_tab": false,
         "show_arrow": true,
         "button_radius": 0,
-        "max_width": 1600,
-        "padding_y": 14,
-        "sticky": false,
-        "show_border": false,
         "bg_color": "#f3f3f3",
         "border_color": "#e0e0e0",
         "logo_color": "#000000",
@@ -92,6 +88,6 @@
   "order": [
     "announcement-bar",
     "header",
-    "custom_heador_ChgPCm"
+    "custom_header_qLXNBF"
   ]
 }
