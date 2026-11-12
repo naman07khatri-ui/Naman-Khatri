@@ -1,10 +1,7 @@
 {%- comment -%}
   Lookbook section for Shopify Dawn
   Save as: sections/lookbook.liquid
-  - Multi-column grid (default 3 columns, up to 9 looks)
-  - "+" hotspot on each image opens a product popup
-  - Popup shows image, name, price, description and variants (rendered dynamically from the product)
-  - ADD TO CART is functional (uses /cart/add.js and refreshes Dawn's cart drawer / notification / bubble)
+  Popup uses the native <dialog> element (black backdrop, Esc to close, focus handling built in).
 {%- endcomment -%}
 
 {%- style -%}
@@ -48,7 +45,7 @@
               type="button"
               class="lookbook__hotspot"
               style="left: {{ block.settings.hotspot_x }}%; top: {{ block.settings.hotspot_y }}%;"
-              aria-label="{{ 'products.product.quick_add' | t | default: 'Quick view' }}: {{ product.title | escape }}"
+              aria-label="Quick view: {{ product.title | escape }}"
               aria-haspopup="dialog"
               data-lookbook-open="LookbookModal-{{ block.id }}"
             >
@@ -62,131 +59,101 @@
     {%- endfor -%}
   </div>
 
-  {%- comment -%} ===== Popups (one per product) ===== {%- endcomment -%}
   {%- for block in section.blocks -%}
     {%- assign product = block.settings.product -%}
     {%- if product != blank -%}
       {%- assign form_id = 'LookbookForm-' | append: block.id -%}
-      <lookbook-modal
-        id="LookbookModal-{{ block.id }}"
-        class="lookbook-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="{{ product.title | escape }}"
-        hidden
-      >
-        <div class="lookbook-modal__overlay" data-lookbook-close></div>
+      <dialog id="LookbookModal-{{ block.id }}" class="lookbook-modal" aria-label="{{ product.title | escape }}">
+        <button type="button" class="lookbook-modal__close" data-lookbook-close aria-label="{{ 'accessibility.close' | t }}">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+            <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.5" fill="none"/>
+          </svg>
+        </button>
 
-        <div class="lookbook-modal__content">
-          <button type="button" class="lookbook-modal__close" data-lookbook-close aria-label="{{ 'accessibility.close' | t }}">
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
-              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <div class="lookbook-modal__top">
+          <div class="lookbook-modal__thumb">
+            {%- assign thumb = product.featured_image | default: block.settings.image -%}
+            {%- if thumb != blank -%}
+              {{ thumb | image_url: width: 300 | image_tag: loading: 'lazy', widths: '150, 300', alt: product.title }}
+            {%- endif -%}
+          </div>
+          <div class="lookbook-modal__info">
+            <p class="lookbook-modal__title">{{ product.title | escape }}</p>
+            <p class="lookbook-modal__price" data-lookbook-price>
+              {{ product.selected_or_first_available_variant.price | money }}
+            </p>
+            <p class="lookbook-modal__description">
+              {{ product.description | strip_html | truncatewords: 25 }}
+            </p>
+          </div>
+        </div>
+
+        <form method="post" action="{{ routes.cart_add_url }}" id="{{ form_id }}" data-lookbook-form novalidate>
+          <input type="hidden" name="id" value="{{ product.selected_or_first_available_variant.id }}" data-lookbook-variant-id>
+
+          {%- unless product.has_only_default_variant -%}
+            {%- for option in product.options_with_values -%}
+              {%- assign option_name_down = option.name | downcase -%}
+              <div class="lookbook-modal__option">
+                {%- if option_name_down contains 'color' or option_name_down contains 'colour' -%}
+                  <span class="lookbook-modal__label">{{ option.name | escape }}</span>
+                  <div class="lookbook-modal__swatches" role="radiogroup" aria-label="{{ option.name | escape }}">
+                    {%- for value in option.values -%}
+                      <input
+                        type="radio"
+                        id="{{ form_id }}-{{ option.position }}-{{ forloop.index0 }}"
+                        name="{{ form_id }}-option-{{ option.position }}"
+                        value="{{ value | escape }}"
+                        {% if option.selected_value == value %}checked{% endif %}
+                      >
+                      <label
+                        for="{{ form_id }}-{{ option.position }}-{{ forloop.index0 }}"
+                        class="lookbook-modal__swatch"
+                        style="--swatch-color: {{ value | handle }};"
+                      >{{ value | escape }}</label>
+                    {%- endfor -%}
+                  </div>
+                {%- else -%}
+                  <label class="lookbook-modal__label" for="{{ form_id }}-select-{{ option.position }}">{{ option.name | escape }}</label>
+                  <div class="lookbook-modal__select-wrap">
+                    <select id="{{ form_id }}-select-{{ option.position }}" class="lookbook-modal__select">
+                      <option value="" disabled selected>Choose your {{ option.name | downcase | escape }}</option>
+                      {%- for value in option.values -%}
+                        <option value="{{ value | escape }}">{{ value | escape }}</option>
+                      {%- endfor -%}
+                    </select>
+                    <svg class="lookbook-modal__chevron" width="14" height="8" viewBox="0 0 14 8" aria-hidden="true" focusable="false">
+                      <path d="M1 1l6 6 6-6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    </svg>
+                  </div>
+                {%- endif -%}
+              </div>
+            {%- endfor -%}
+          {%- endunless -%}
+
+          <p class="lookbook-modal__error" data-lookbook-error role="alert" hidden></p>
+
+          <button type="submit" class="lookbook-modal__atc" data-lookbook-atc>
+            <span>ADD TO CART</span>
+            <svg width="30" height="10" viewBox="0 0 30 10" aria-hidden="true" focusable="false">
+              <path d="M0 5h28M24 1l4 4-4 4" stroke="currentColor" stroke-width="1.2" fill="none"/>
             </svg>
           </button>
+        </form>
 
-          <div class="lookbook-modal__top">
-            <div class="lookbook-modal__thumb">
-              {%- assign thumb = product.featured_image | default: block.settings.image -%}
-              {%- if thumb != blank -%}
-                {{ thumb | image_url: width: 300 | image_tag: loading: 'lazy', widths: '150, 300', alt: product.title }}
-              {%- endif -%}
-            </div>
-            <div class="lookbook-modal__info">
-              <p class="lookbook-modal__title">{{ product.title | escape }}</p>
-              <p class="lookbook-modal__price" data-lookbook-price>
-                {{ product.selected_or_first_available_variant.price | money }}
-              </p>
-              <p class="lookbook-modal__description">
-                {{ product.description | strip_html | truncatewords: 25 }}
-              </p>
-            </div>
-          </div>
-
-          <form
-            method="post"
-            action="{{ routes.cart_add_url }}"
-            id="{{ form_id }}"
-            class="lookbook-modal__form"
-            data-lookbook-form
-            novalidate
-          >
-            <input type="hidden" name="id" value="" data-lookbook-variant-id>
-
-            {%- unless product.has_only_default_variant -%}
-              {%- for option in product.options_with_values -%}
-                {%- assign option_name_down = option.name | downcase -%}
-                {%- assign is_color = false -%}
-                {%- if option_name_down contains 'color' or option_name_down contains 'colour' -%}
-                  {%- assign is_color = true -%}
-                {%- endif -%}
-
-                <div class="lookbook-modal__option" data-option-index="{{ forloop.index0 }}">
-                  {%- if is_color -%}
-                    <span class="lookbook-modal__label">{{ option.name | escape }}</span>
-                    <div class="lookbook-modal__swatches" role="radiogroup" aria-label="{{ option.name | escape }}">
-                      {%- for value in option.values -%}
-                        <input
-                          type="radio"
-                          id="{{ form_id }}-{{ option.position }}-{{ forloop.index0 }}"
-                          name="{{ form_id }}-option-{{ option.position }}"
-                          value="{{ value | escape }}"
-                          data-option-input
-                          {% if option.selected_value == value %}checked{% endif %}
-                        >
-                        <label
-                          for="{{ form_id }}-{{ option.position }}-{{ forloop.index0 }}"
-                          class="lookbook-modal__swatch"
-                          style="--swatch-color: {{ value | handle }};"
-                        >{{ value | escape }}</label>
-                      {%- endfor -%}
-                    </div>
-                  {%- else -%}
-                    <label class="lookbook-modal__label" for="{{ form_id }}-select-{{ option.position }}">{{ option.name | escape }}</label>
-                    <div class="lookbook-modal__select-wrap">
-                      <select
-                        id="{{ form_id }}-select-{{ option.position }}"
-                        class="lookbook-modal__select"
-                        data-option-input
-                      >
-                        <option value="" disabled selected>Choose your {{ option.name | downcase | escape }}</option>
-                        {%- for value in option.values -%}
-                          <option value="{{ value | escape }}">{{ value | escape }}</option>
-                        {%- endfor -%}
-                      </select>
-                      <svg class="lookbook-modal__chevron" width="14" height="8" viewBox="0 0 14 8" aria-hidden="true" focusable="false">
-                        <path d="M1 1l6 6 6-6" stroke="currentColor" stroke-width="1.5" fill="none"/>
-                      </svg>
-                    </div>
-                  {%- endif -%}
-                </div>
-              {%- endfor -%}
-            {%- endunless -%}
-
-            <p class="lookbook-modal__error" data-lookbook-error role="alert" hidden></p>
-
-            <button type="submit" class="lookbook-modal__atc" data-lookbook-atc>
-              <span data-lookbook-atc-text>ADD TO CART</span>
-              <svg width="30" height="10" viewBox="0 0 30 10" aria-hidden="true" focusable="false">
-                <path d="M0 5h28M24 1l4 4-4 4" stroke="currentColor" stroke-width="1.2" fill="none"/>
-              </svg>
-            </button>
-          </form>
-
-          {%- comment -%} Variant data, rendered from the product so options/prices/availability stay dynamic {%- endcomment -%}
-          <script type="application/json" data-lookbook-variants>
-            [
-              {%- for variant in product.variants -%}
-                {
-                  "id": {{ variant.id }},
-                  "options": {{ variant.options | json }},
-                  "available": {{ variant.available | json }},
-                  "price": {{ variant.price | money | json }}
-                }{% unless forloop.last %},{% endunless %}
-              {%- endfor -%}
-            ]
-          </script>
-        </div>
-      </lookbook-modal>
+        <script type="application/json" data-lookbook-variants>
+          [
+            {%- for variant in product.variants -%}
+              {
+                "id": {{ variant.id }},
+                "options": {{ variant.options | json }},
+                "available": {{ variant.available | json }},
+                "price": {{ variant.price | money | json }}
+              }{% unless forloop.last %},{% endunless %}
+            {%- endfor -%}
+          ]
+        </script>
+      </dialog>
     {%- endif -%}
   {%- endfor -%}
 </div>
@@ -214,27 +181,26 @@
     color: #000;
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
-    box-shadow: 0 0 0 0 rgba(255,255,255,.7);
     transition: transform .2s ease, background .2s ease;
     padding: 0;
   }
   .lookbook__hotspot:hover { transform: translate(-50%, -50%) scale(1.15); background: #fff; }
   .lookbook__hotspot:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
 
-  /* Modal */
-  .lookbook-modal[hidden] { display: none; }
-  .lookbook-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; }
-  .lookbook-modal__overlay { position: absolute; inset: 0; background: rgba(0,0,0,.45); }
-  .lookbook-modal__content {
-    position: relative;
+  /* Popup (native <dialog>) */
+  .lookbook-modal {
+    border: 0;
+    padding: 2rem 1.6rem 1.8rem;
     background: #fff;
     color: #000;
     width: calc(100% - 3rem);
     max-width: 34rem;
     max-height: calc(100vh - 3rem);
     overflow-y: auto;
-    padding: 2rem 1.6rem 1.8rem;
   }
+  .lookbook-modal::backdrop { background: #000; opacity: .9; }
+  body:has(.lookbook-modal[open]) { overflow: hidden; }
+
   .lookbook-modal__close {
     position: absolute; top: 1rem; right: 1rem;
     background: none; border: 0; cursor: pointer; padding: .6rem; color: inherit;
@@ -254,18 +220,14 @@
   .lookbook-modal__swatch {
     flex: 1;
     border: 1px solid #000;
-    border-left-width: 4px;
-    border-left-color: var(--swatch-color, #000);
+    border-left: 4px solid var(--swatch-color, #000);
     padding: .9rem 1rem;
     font-size: 1.5rem;
     cursor: pointer;
     background: #fff;
   }
-  .lookbook-modal__swatch + input + .lookbook-modal__swatch,
-  .lookbook-modal__swatches input + .lookbook-modal__swatch + input + .lookbook-modal__swatch { border-left-width: 4px; }
   .lookbook-modal__swatches input:checked + .lookbook-modal__swatch { background: #f2f2f2; box-shadow: inset 0 0 0 1px #000; }
   .lookbook-modal__swatches input:focus-visible + .lookbook-modal__swatch { outline: 2px solid #000; outline-offset: 2px; }
-  .lookbook-modal__swatches input.is-unavailable + .lookbook-modal__swatch { opacity: .45; text-decoration: line-through; }
 
   .lookbook-modal__select-wrap { position: relative; }
   .lookbook-modal__select {
@@ -285,7 +247,6 @@
     padding: 1.4rem 1rem; font-size: 1.4rem; letter-spacing: .04em; margin-top: 2rem;
   }
   .lookbook-modal__atc[disabled] { opacity: .5; cursor: not-allowed; }
-  body.lookbook-modal-open { overflow: hidden; }
 {%- endstylesheet -%}
 
 {%- javascript -%}
@@ -293,177 +254,92 @@
     if (window.__lookbookInit) return;
     window.__lookbookInit = true;
 
-    class LookbookModal extends HTMLElement {
-      connectedCallback() {
-        this.form = this.querySelector('[data-lookbook-form]');
-        this.variants = JSON.parse(this.querySelector('[data-lookbook-variants]').textContent);
-        this.inputs = Array.from(this.querySelectorAll('[data-option-input]'));
-        this.variantInput = this.querySelector('[data-lookbook-variant-id]');
-        this.priceEl = this.querySelector('[data-lookbook-price]');
-        this.errorEl = this.querySelector('[data-lookbook-error]');
-        this.atc = this.querySelector('[data-lookbook-atc]');
-        this.atcText = this.querySelector('[data-lookbook-atc-text]');
-        this.defaultAtcLabel = this.atcText.textContent;
-
-        this.querySelectorAll('[data-lookbook-close]').forEach((el) =>
-          el.addEventListener('click', () => this.close())
-        );
-        this.addEventListener('keydown', (e) => {
-          if (e.key === 'Escape') this.close();
-        });
-        this.inputs.forEach((input) => input.addEventListener('change', () => this.onOptionChange()));
-        this.form.addEventListener('submit', (e) => this.onSubmit(e));
-
-        this.onOptionChange();
-      }
-
-      open(trigger) {
-        this.trigger = trigger;
-        this.hidden = false;
-        document.body.classList.add('lookbook-modal-open');
-        const focusTarget = this.querySelector('.lookbook-modal__close');
-        focusTarget && focusTarget.focus();
-      }
-
-      close() {
-        this.hidden = true;
-        document.body.classList.remove('lookbook-modal-open');
-        this.trigger && this.trigger.focus();
-      }
-
-      selectedOptions() {
-        // One input group per option; read selected value (or null)
-        const groups = Array.from(this.querySelectorAll('.lookbook-modal__option'));
-        return groups.map((group) => {
-          const select = group.querySelector('select');
-          if (select) return select.value || null;
-          const checked = group.querySelector('input:checked');
-          return checked ? checked.value : null;
-        });
-      }
-
-      currentVariant() {
-        const selected = this.selectedOptions();
-        // Products with only the default variant have no option groups
-        if (!selected.length) return this.variants[0];
-        if (selected.some((v) => v === null)) return null;
-        return this.variants.find((variant) =>
-          variant.options.every((opt, i) => opt === selected[i])
-        );
-      }
-
-      onOptionChange() {
-        this.errorEl.hidden = true;
-        const variant = this.currentVariant();
-        this.updateAvailability();
-
-        if (variant) {
-          this.variantInput.value = variant.id;
-          this.priceEl.textContent = variant.price;
-          this.atc.disabled = !variant.available;
-          this.atcText.textContent = variant.available ? this.defaultAtcLabel : 'SOLD OUT';
-        } else {
-          this.variantInput.value = '';
-          const selected = this.selectedOptions();
-          const incomplete = selected.some((v) => v === null);
-          this.atc.disabled = !incomplete ? true : false;
-          this.atcText.textContent = !incomplete ? 'UNAVAILABLE' : this.defaultAtcLabel;
-        }
-      }
-
-      // Mark swatch values that have no available variant given the other selections
-      updateAvailability() {
-        const groups = Array.from(this.querySelectorAll('.lookbook-modal__option'));
-        const selected = this.selectedOptions();
-        groups.forEach((group, index) => {
-          group.querySelectorAll('input[type="radio"]').forEach((input) => {
-            const exists = this.variants.some(
-              (variant) =>
-                variant.available &&
-                variant.options[index] === input.value &&
-                variant.options.every((opt, i) => i === index || selected[i] === null || opt === selected[i])
-            );
-            input.classList.toggle('is-unavailable', !exists);
-          });
-        });
-      }
-
-      showError(message) {
-        this.errorEl.textContent = message;
-        this.errorEl.hidden = false;
-      }
-
-      async onSubmit(event) {
-        event.preventDefault();
-        const variant = this.currentVariant();
-        if (!variant) {
-          this.showError('Please choose all options before adding to cart.');
-          return;
-        }
-        if (!variant.available) return;
-
-        this.atc.disabled = true;
-        this.atc.setAttribute('aria-busy', 'true');
-        this.atcText.textContent = 'ADDING...';
-
-        try {
-          const cartEl = document.querySelector('cart-drawer') || document.querySelector('cart-notification');
-          const body = { items: [{ id: variant.id, quantity: 1 }] };
-          if (cartEl && typeof cartEl.getSectionsToRender === 'function') {
-            body.sections = cartEl.getSectionsToRender().map((s) => s.id).join(',');
-            body.sections_url = window.location.pathname;
-          }
-
-          const response = await fetch(`${window.Shopify.routes.root}cart/add.js`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            body: JSON.stringify(body),
-          });
-          const data = await response.json();
-
-          if (!response.ok || data.status) {
-            this.showError(data.description || data.message || 'Could not add this item to the cart.');
-            return;
-          }
-
-          this.close();
-
-          if (cartEl && typeof cartEl.renderContents === 'function') {
-            // Dawn's cart drawer / notification handles its own UI refresh + opening
-            cartEl.renderContents(data);
-          } else {
-            await this.refreshCartBubble();
-          }
-        } catch (err) {
-          console.error(err);
-          this.showError('Something went wrong. Please try again.');
-        } finally {
-          this.atc.removeAttribute('aria-busy');
-          this.onOptionChange();
-        }
-      }
-
-      async refreshCartBubble() {
-        try {
-          const res = await fetch(`${window.Shopify.routes.root}?sections=cart-icon-bubble`);
-          const sections = await res.json();
-          const bubble = document.getElementById('cart-icon-bubble');
-          if (bubble && sections['cart-icon-bubble']) {
-            const html = new DOMParser().parseFromString(sections['cart-icon-bubble'], 'text/html');
-            const fresh = html.querySelector('.shopify-section');
-            if (fresh) bubble.innerHTML = fresh.innerHTML;
-          }
-        } catch (e) { /* cart still updated server-side */ }
-      }
+    // Find the variant matching the currently selected options (null if incomplete / not found)
+    function getVariant(form) {
+      const variants = JSON.parse(form.closest('dialog').querySelector('[data-lookbook-variants]').textContent);
+      const groups = form.querySelectorAll('.lookbook-modal__option');
+      if (!groups.length) return variants[0];
+      const selected = Array.from(groups, (g) => {
+        const el = g.querySelector('select') || g.querySelector('input:checked');
+        return el && el.value ? el.value : null;
+      });
+      if (selected.includes(null)) return null;
+      return variants.find((v) => v.options.every((o, i) => o === selected[i]));
     }
 
-    if (!customElements.get('lookbook-modal')) customElements.define('lookbook-modal', LookbookModal);
+    // Sync hidden variant id, price and button state
+    function update(form) {
+      const variant = getVariant(form);
+      const atc = form.querySelector('[data-lookbook-atc]');
+      form.querySelector('[data-lookbook-error]').hidden = true;
+      form.querySelector('[data-lookbook-variant-id]').value = variant ? variant.id : '';
+      // null = options not all chosen yet (button stays clickable to show a hint),
+      // undefined = that combination doesn't exist, otherwise follow stock
+      atc.disabled = variant === undefined || (!!variant && !variant.available);
+      if (variant) form.closest('dialog').querySelector('[data-lookbook-price]').textContent = variant.price;
+    }
 
-    document.addEventListener('click', (event) => {
-      const btn = event.target.closest('[data-lookbook-open]');
-      if (!btn) return;
-      const modal = document.getElementById(btn.dataset.lookbookOpen);
-      if (modal) modal.open(btn);
+    document.addEventListener('click', (e) => {
+      const open = e.target.closest('[data-lookbook-open]');
+      if (open) {
+        const dialog = document.getElementById(open.dataset.lookbookOpen);
+        update(dialog.querySelector('[data-lookbook-form]'));
+        dialog.showModal();
+      } else if (e.target.closest('[data-lookbook-close]') || e.target.matches('dialog.lookbook-modal')) {
+        // close button, or click on the dialog's own backdrop area
+        (e.target.closest('dialog') || e.target).close();
+      }
+    });
+
+    document.addEventListener('change', (e) => {
+      const form = e.target.closest('[data-lookbook-form]');
+      if (form) update(form);
+    });
+
+    document.addEventListener('submit', async (e) => {
+      const form = e.target.closest('[data-lookbook-form]');
+      if (!form) return;
+      e.preventDefault();
+
+      const error = form.querySelector('[data-lookbook-error]');
+      const atc = form.querySelector('[data-lookbook-atc]');
+      const variant = getVariant(form);
+
+      if (!variant) {
+        error.textContent = 'Please choose all options before adding to cart.';
+        error.hidden = false;
+        return;
+      }
+
+      atc.disabled = true;
+      try {
+        const cart = document.querySelector('cart-drawer') || document.querySelector('cart-notification');
+        const body = { items: [{ id: variant.id, quantity: 1 }] };
+        if (cart) {
+          body.sections = cart.getSectionsToRender().map((s) => s.id).join(',');
+          body.sections_url = window.location.pathname;
+        }
+
+        const res = await fetch(`${window.Shopify.routes.root}cart/add.js`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+
+        if (!res.ok || data.status) {
+          error.textContent = data.description || data.message || 'Could not add this item to the cart.';
+          error.hidden = false;
+        } else {
+          form.closest('dialog').close();
+          if (cart) cart.renderContents(data);
+        }
+      } catch (err) {
+        error.textContent = 'Something went wrong. Please try again.';
+        error.hidden = false;
+      } finally {
+        update(form);
+      }
     });
   })();
 {%- endjavascript -%}
@@ -475,12 +351,7 @@
   "class": "section",
   "max_blocks": 9,
   "settings": [
-    {
-      "type": "text",
-      "id": "heading",
-      "label": "Heading",
-      "default": "Shop the look"
-    },
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Shop the look" },
     {
       "type": "select",
       "id": "heading_size",
@@ -492,90 +363,21 @@
       ],
       "default": "h1"
     },
-    {
-      "type": "range",
-      "id": "columns_desktop",
-      "label": "Columns on desktop",
-      "min": 2,
-      "max": 4,
-      "step": 1,
-      "default": 3
-    },
-    {
-      "type": "range",
-      "id": "columns_mobile",
-      "label": "Columns on mobile",
-      "min": 1,
-      "max": 3,
-      "step": 1,
-      "default": 1
-    },
-    {
-      "type": "range",
-      "id": "gap",
-      "label": "Gap between images",
-      "min": 0,
-      "max": 40,
-      "step": 2,
-      "unit": "px",
-      "default": 20
-    },
-    {
-      "type": "range",
-      "id": "padding_top",
-      "label": "Top padding",
-      "min": 0,
-      "max": 100,
-      "step": 4,
-      "unit": "px",
-      "default": 36
-    },
-    {
-      "type": "range",
-      "id": "padding_bottom",
-      "label": "Bottom padding",
-      "min": 0,
-      "max": 100,
-      "step": 4,
-      "unit": "px",
-      "default": 36
-    }
+    { "type": "range", "id": "columns_desktop", "label": "Columns on desktop", "min": 2, "max": 4, "step": 1, "default": 3 },
+    { "type": "range", "id": "columns_mobile", "label": "Columns on mobile", "min": 1, "max": 3, "step": 1, "default": 1 },
+    { "type": "range", "id": "gap", "label": "Gap between images", "min": 0, "max": 40, "step": 2, "unit": "px", "default": 20 },
+    { "type": "range", "id": "padding_top", "label": "Top padding", "min": 0, "max": 100, "step": 4, "unit": "px", "default": 36 },
+    { "type": "range", "id": "padding_bottom", "label": "Bottom padding", "min": 0, "max": 100, "step": 4, "unit": "px", "default": 36 }
   ],
   "blocks": [
     {
       "type": "look",
       "name": "Look",
       "settings": [
-        {
-          "type": "image_picker",
-          "id": "image",
-          "label": "Look image"
-        },
-        {
-          "type": "product",
-          "id": "product",
-          "label": "Product"
-        },
-        {
-          "type": "range",
-          "id": "hotspot_x",
-          "label": "+ icon position (horizontal)",
-          "min": 0,
-          "max": 100,
-          "step": 1,
-          "unit": "%",
-          "default": 50
-        },
-        {
-          "type": "range",
-          "id": "hotspot_y",
-          "label": "+ icon position (vertical)",
-          "min": 0,
-          "max": 100,
-          "step": 1,
-          "unit": "%",
-          "default": 50
-        }
+        { "type": "image_picker", "id": "image", "label": "Look image" },
+        { "type": "product", "id": "product", "label": "Product" },
+        { "type": "range", "id": "hotspot_x", "label": "+ icon position (horizontal)", "min": 0, "max": 100, "step": 1, "unit": "%", "default": 50 },
+        { "type": "range", "id": "hotspot_y", "label": "+ icon position (vertical)", "min": 0, "max": 100, "step": 1, "unit": "%", "default": 50 }
       ]
     }
   ],
@@ -583,15 +385,9 @@
     {
       "name": "Lookbook",
       "blocks": [
-        { "type": "look" },
-        { "type": "look" },
-        { "type": "look" },
-        { "type": "look" },
-        { "type": "look" },
-        { "type": "look" },
-        { "type": "look" },
-        { "type": "look" },
-        { "type": "look" }
+        { "type": "look" }, { "type": "look" }, { "type": "look" },
+        { "type": "look" }, { "type": "look" }, { "type": "look" },
+        { "type": "look" }, { "type": "look" }, { "type": "look" }
       ]
     }
   ]
