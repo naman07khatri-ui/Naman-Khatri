@@ -18,7 +18,6 @@
 -%}
 
 {% comment %} ============================== STYLES ============================== {% endcomment %}
-{% raw %}
 <style>
   /* Mobile-first: 2-column grid + bottom-sheet popup by default,
      3-column grid + centred popup from 750px up. */
@@ -130,7 +129,7 @@
   }
   @media (prefers-reduced-motion: reduce) { .stl__hotspot { transition: none; } }
 </style>
-{% endraw %}
+
 
 {% comment %} ============================== MARKUP ============================== {% endcomment %}
 <section
@@ -226,7 +225,7 @@
 </section>
 
 {% comment %} ============================== SCRIPT ============================== {% endcomment %}
-{% raw %}
+
 <script>
 /**
  * Vanilla JS (no jQuery) controller for the "Shop the look" section.
@@ -629,7 +628,7 @@
   document.addEventListener('shopify:section:load', (e) => init(e.target));
 })();
 </script>
-{% endraw %}
+
 
 {% schema %}
 {
