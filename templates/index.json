@@ -9,39 +9,6 @@
  */
 {
   "sections": {
-    "custom_heador_BmE44B": {
-      "type": "custom-heador",
-      "name": "Custom Header",
-      "settings": {
-        "logo_width": 160,
-        "logo_text": "Tisso Vison",
-        "logo_uppercase": true,
-        "logo_text_size": 28,
-        "logo_weight": "600",
-        "logo_link": "",
-        "message": "Find the ideal gift for your loved ones.",
-        "message_link": "",
-        "message_size": 16,
-        "show_message_mobile": true,
-        "button_label": "Choose Gift",
-        "button_link": "",
-        "button_new_tab": false,
-        "show_arrow": true,
-        "button_radius": 0,
-        "max_width": 1600,
-        "padding_y": 14,
-        "sticky": false,
-        "show_border": false,
-        "bg_color": "#f3f3f3",
-        "border_color": "#e0e0e0",
-        "logo_color": "#000000",
-        "message_color": "#000000",
-        "button_bg": "#f7ec4a",
-        "button_text_color": "#000000",
-        "button_bg_hover": "#000000",
-        "button_text_hover": "#ffffff"
-      }
-    },
     "image_banner": {
       "type": "image-banner",
       "blocks": {
@@ -111,7 +78,6 @@
     }
   },
   "order": [
-    "custom_heador_BmE44B",
     "image_banner",
     "featured_collection"
   ]
