@@ -249,7 +249,7 @@
   .lookbook-modal__atc[disabled] { opacity: .5; cursor: not-allowed; }
 {%- endstylesheet -%}
 
-{%- javascript -%}
+<script>
   (function () {
     if (window.__lookbookInit) return;
     window.__lookbookInit = true;
@@ -342,7 +342,7 @@
       }
     });
   })();
-{%- endjavascript -%}
+</script>
 
 {% schema %}
 {
