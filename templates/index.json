@@ -9,6 +9,50 @@
  */
 {
   "sections": {
+    "custom_banner_mmq6Vc": {
+      "type": "custom-banner",
+      "name": "Custom Banner",
+      "settings": {
+        "heading": "The Gift Guide",
+        "heading_tag": "h2",
+        "description": "<p>Discover Joy: Your Ultimate Holiday Gift Destination. Explore our curated selection and find the perfect gifts to delight your loved ones this holiday season.</p>",
+        "button_label": "Shop Now",
+        "button_link": "",
+        "button_new_tab": false,
+        "show_arrow": true,
+        "button_radius": 0,
+        "strip_text": "Sustainable, ethically made clothes in sizes XXS to 6XL",
+        "strip_link": "",
+        "bg_fit": "cover",
+        "bg_position": "center center",
+        "bg_color": "#ffffff",
+        "overlay_color": "#ffffff",
+        "overlay_opacity": 0,
+        "banner_height": 560,
+        "banner_height_mobile": 460,
+        "content_width": 560,
+        "horizontal_align": "flex-start",
+        "vertical_align": "center",
+        "text_align": "left",
+        "show_content_box": false,
+        "content_box_bg": "#ffffff",
+        "padding_top": 40,
+        "padding_bottom": 40,
+        "heading_size": 72,
+        "heading_size_mobile": 40,
+        "heading_weight": "600",
+        "heading_uppercase": false,
+        "text_size": 18,
+        "heading_color": "#000000",
+        "text_color": "#000000",
+        "button_bg": "#000000",
+        "button_text_color": "#ffffff",
+        "button_bg_hover": "#ffffff",
+        "button_text_hover": "#000000",
+        "strip_bg": "#f3f3f3",
+        "strip_text_color": "#000000"
+      }
+    },
     "image_banner": {
       "type": "image-banner",
       "blocks": {
@@ -35,6 +79,7 @@
         "heading",
         "button"
       ],
+      "disabled": true,
       "settings": {
         "image_overlay_opacity": 40,
         "image_height": "large",
@@ -78,6 +123,7 @@
     }
   },
   "order": [
+    "custom_banner_mmq6Vc",
     "image_banner",
     "featured_collection"
   ]
