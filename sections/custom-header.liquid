@@ -19,6 +19,10 @@
     --ch-btn-radius: {{ section.settings.button_radius }}px;
     --ch-py: {{ section.settings.padding_y }}px;
     --ch-maxw: {{ section.settings.max_width }}px;
+    --ch-burger-color: {{ section.settings.hamburger_color }};
+    --ch-drawer-bg: {{ section.settings.drawer_bg }};
+    --ch-drawer-color: {{ section.settings.drawer_text_color }};
+    --ch-drawer-w: {{ section.settings.drawer_width }}px;
   }
 
   #CustomHeader-{{ section_id }} .header-wrapper {
@@ -41,6 +45,26 @@
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: 20px;
+  }
+
+  /* Hamburger (mobile only) */
+  #CustomHeader-{{ section_id }} .header-burger {
+    display: none;
+    justify-self: start;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    color: var(--ch-burger-color);
+  }
+
+  #CustomHeader-{{ section_id }} .header-burger svg {
+    width: 26px;
+    height: 26px;
   }
 
   #CustomHeader-{{ section_id }} .header-logo {
@@ -116,25 +140,118 @@
     transform: translateX(4px);
   }
 
+  /* Mobile drawer (hidden on desktop) */
+  #CustomHeader-{{ section_id }} .header-drawer,
+  #CustomHeader-{{ section_id }} .header-drawer-overlay {
+    display: none;
+  }
+
   @media (max-width: 989px) {
     #CustomHeader-{{ section_id }} .header-container {
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr auto 1fr;
       gap: 12px;
     }
 
-    #CustomHeader-{{ section_id }} .header-message {
-      grid-column: 1 / -1;
-      grid-row: 2;
-
-      {% unless section.settings.show_message_mobile %}
-        display: none;
-      {% endunless %}
+    /* hide center message + right button */
+    #CustomHeader-{{ section_id }} .header-message,
+    #CustomHeader-{{ section_id }} .header-action {
+      display: none;
     }
 
-    #CustomHeader-{{ section_id }} .header-button {
-      padding: 10px 18px;
-      font-size: 13px;
-      gap: 12px;
+    /* hamburger left */
+    #CustomHeader-{{ section_id }} .header-burger {
+      display: inline-flex;
+      grid-column: 1;
+    }
+
+    /* logo center */
+    #CustomHeader-{{ section_id }} .header-logo {
+      grid-column: 2;
+      justify-self: center;
+    }
+
+    /* drawer */
+    #CustomHeader-{{ section_id }} .header-drawer-overlay {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+      z-index: 998;
+    }
+
+    #CustomHeader-{{ section_id }} .header-drawer {
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: min(var(--ch-drawer-w), 88vw);
+      background: var(--ch-drawer-bg);
+      color: var(--ch-drawer-color);
+      transform: translateX(-100%);
+      transition: transform 0.3s ease;
+      z-index: 999;
+      overflow-y: auto;
+    }
+
+    #CustomHeader-{{ section_id }}.is-menu-open .header-drawer {
+      transform: translateX(0);
+    }
+
+    #CustomHeader-{{ section_id }}.is-menu-open .header-drawer-overlay {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    #CustomHeader-{{ section_id }} .header-drawer-top {
+      display: flex;
+      justify-content: flex-end;
+      padding: 15px;
+    }
+
+    #CustomHeader-{{ section_id }} .header-drawer-close {
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      background: none;
+      border: 0;
+      cursor: pointer;
+      color: var(--ch-drawer-color);
+    }
+
+    #CustomHeader-{{ section_id }} .header-drawer-close svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    #CustomHeader-{{ section_id }} .header-drawer-nav {
+      list-style: none;
+      margin: 0;
+      padding: 0 20px 30px;
+    }
+
+    #CustomHeader-{{ section_id }} .header-drawer-nav a {
+      display: block;
+      padding: 14px 0;
+      color: inherit;
+      text-decoration: none;
+      font-size: 17px;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+    }
+
+    #CustomHeader-{{ section_id }} .header-drawer-sub {
+      list-style: none;
+      margin: 0;
+      padding: 0 0 0 16px;
+    }
+
+    #CustomHeader-{{ section_id }} .header-drawer-sub a {
+      font-size: 15px;
+      opacity: 0.85;
     }
   }
 </style>
@@ -146,6 +263,19 @@
 >
   <div class="header-wrapper">
     <div class="header-container">
+
+      {%- comment -%} Hamburger (mobile only) {%- endcomment -%}
+      <button
+        type="button"
+        class="header-burger"
+        aria-label="Open menu"
+        aria-expanded="false"
+        data-header-open
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <path d="M3 6h18M3 12h18M3 18h18"/>
+        </svg>
+      </button>
 
       {%- comment -%} Header logo {%- endcomment -%}
       <a class="header-logo" href="{{ logo_link }}">
@@ -206,7 +336,64 @@
 
     </div>
   </div>
+
+  {%- comment -%} Mobile drawer {%- endcomment -%}
+  <div class="header-drawer-overlay" data-header-close></div>
+
+  <nav class="header-drawer" aria-label="Mobile menu">
+    <div class="header-drawer-top">
+      <button type="button" class="header-drawer-close" aria-label="Close menu" data-header-close>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <path d="M5 5l14 14M19 5L5 19"/>
+        </svg>
+      </button>
+    </div>
+
+    {%- if section.settings.menu != blank -%}
+      <ul class="header-drawer-nav">
+        {%- for link in section.settings.menu.links -%}
+          <li>
+            <a href="{{ link.url }}">{{ link.title | escape }}</a>
+            {%- if link.links.size > 0 -%}
+              <ul class="header-drawer-sub">
+                {%- for child in link.links -%}
+                  <li><a href="{{ child.url }}">{{ child.title | escape }}</a></li>
+                {%- endfor -%}
+              </ul>
+            {%- endif -%}
+          </li>
+        {%- endfor -%}
+      </ul>
+    {%- endif -%}
+  </nav>
 </header>
+
+<script>
+  (function () {
+    var root = document.getElementById('CustomHeader-{{ section_id }}');
+    if (!root) return;
+
+    var burger = root.querySelector('[data-header-open]');
+    var closers = root.querySelectorAll('[data-header-close]');
+
+    function setOpen(open) {
+      root.classList.toggle('is-menu-open', open);
+      burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      document.documentElement.style.overflow = open ? 'hidden' : '';
+    }
+
+    burger.addEventListener('click', function () { setOpen(true); });
+    closers.forEach(function (el) {
+      el.addEventListener('click', function () { setOpen(false); });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') setOpen(false);
+    });
+    window.addEventListener('resize', function () {
+      if (window.innerWidth > 989) setOpen(false);
+    });
+  })();
+</script>
 
 {% schema %}
 {
@@ -274,7 +461,7 @@
     },
     {
       "type": "header",
-      "content": "Center message"
+      "content": "Center message (desktop only)"
     },
     {
       "type": "text",
@@ -298,14 +485,8 @@
       "default": 16
     },
     {
-      "type": "checkbox",
-      "id": "show_message_mobile",
-      "label": "Show message on mobile",
-      "default": true
-    },
-    {
       "type": "header",
-      "content": "Button"
+      "content": "Button (desktop only)"
     },
     {
       "type": "text",
@@ -340,7 +521,44 @@
       "unit": "px",
       "default": 0
     },
-    
+    {
+      "type": "header",
+      "content": "Mobile menu"
+    },
+    {
+      "type": "link_list",
+      "id": "menu",
+      "label": "Menu",
+      "default": "main-menu"
+    },
+    {
+      "type": "range",
+      "id": "drawer_width",
+      "label": "Drawer width",
+      "min": 240,
+      "max": 480,
+      "step": 10,
+      "unit": "px",
+      "default": 320
+    },
+    {
+      "type": "color",
+      "id": "hamburger_color",
+      "label": "Hamburger icon",
+      "default": "#000000"
+    },
+    {
+      "type": "color",
+      "id": "drawer_bg",
+      "label": "Drawer background",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "drawer_text_color",
+      "label": "Drawer text",
+      "default": "#000000"
+    },
     {
       "type": "header",
       "content": "Colors"
