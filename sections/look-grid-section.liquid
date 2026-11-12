@@ -1,734 +1,597 @@
-{%- liquid
-  # Optional bonus product, added automatically with a matching variant.
-  # Only used when the product exists and the variant is in stock.
-  assign bonus = section.settings.bundle_product
-  assign bonus_variant = bonus.selected_or_first_available_variant
--%}
+{%- comment -%}
+  Lookbook section for Shopify Dawn
+  Save as: sections/lookbook.liquid
+  - Multi-column grid (default 3 columns, up to 9 looks)
+  - "+" hotspot on each image opens a product popup
+  - Popup shows image, name, price, description and variants (rendered dynamically from the product)
+  - ADD TO CART is functional (uses /cart/add.js and refreshes Dawn's cart drawer / notification / bubble)
+{%- endcomment -%}
 
-{% comment %} ============================== STYLES ============================== {% endcomment %}
-{% raw %}
-<style>
-  /* Mobile-first: 2-column grid + bottom-sheet popup by default,
-     3-column grid + centred popup from 750px up. */
-  .stl {
-    --stl-gap: 1rem;
-    --stl-ink: #000;
-    --stl-paper: #fff;
-    --stl-line: #1a1a1a;
-    padding: 2rem 1rem;
+{%- style -%}
+  .lookbook-{{ section.id }} {
+    padding-top: {{ section.settings.padding_top }}px;
+    padding-bottom: {{ section.settings.padding_bottom }}px;
   }
-  .stl__inner { max-width: 1200px; margin: 0 auto; }
-  .stl__heading { font-weight: 400; margin: 0 0 1.5rem; font-size: 1.5rem; }
+  .lookbook-{{ section.id }} .lookbook__grid {
+    --lb-gap: {{ section.settings.gap }}px;
+    --lb-cols-mobile: {{ section.settings.columns_mobile }};
+    --lb-cols-desktop: {{ section.settings.columns_desktop }};
+  }
+{%- endstyle -%}
 
-  /* ---------- Grid ---------- */
-  .stl__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--stl-gap); }
-  .stl__item { position: relative; aspect-ratio: 1 / 1; overflow: hidden; background: #eee; }
-  .stl__image { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .stl__image--placeholder svg { width: 100%; height: 100%; }
+<div class="lookbook lookbook-{{ section.id }} page-width">
+  {%- if section.settings.heading != blank -%}
+    <h2 class="lookbook__heading {{ section.settings.heading_size }}">{{ section.settings.heading | escape }}</h2>
+  {%- endif -%}
 
-  /* ---------- "+" hotspot ---------- */
-  .stl__hotspot {
-    position: absolute; z-index: 2; left: var(--x, 50%); top: var(--y, 50%);
-    transform: translate(-50%, -50%);
-    width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
-    background: rgba(255, 255, 255, 0.92); color: var(--stl-ink);
-    cursor: pointer; transition: transform 0.2s ease; touch-action: manipulation;
-  }
-  /* Plus sign drawn with gradients (no extra markup or icon font). */
-  .stl__hotspot::before {
-    content: ''; position: absolute; inset: 8px; pointer-events: none;
-    background:
-      linear-gradient(currentColor, currentColor) center / 100% 1.5px no-repeat,
-      linear-gradient(currentColor, currentColor) center / 1.5px 100% no-repeat;
-  }
-  /* Bigger touch target (~44px) without changing the visual size. */
-  .stl__hotspot::after { content: ''; position: absolute; inset: -8px; }
-  .stl__hotspot:hover,
-  .stl__hotspot:focus-visible { transform: translate(-50%, -50%) scale(1.15); }
-  .stl__hotspot:focus-visible { outline: 2px solid var(--stl-ink); outline-offset: 2px; }
-
-  /* ---------- Popup (native <dialog>) ---------- */
-  .stl-modal {
-    width: 100%; max-width: none; max-height: 90vh; /* mobile: bottom sheet */
-    margin: auto 0 0; padding: 1.5rem 1.25rem 1.25rem;
-    border: 0; background: var(--stl-paper); color: var(--stl-ink); overflow-y: auto;
-  }
-  .stl-modal::backdrop { background: rgba(0, 0, 0, 0.55); }
-  .stl-modal__close {
-    position: absolute; top: 0.75rem; right: 0.75rem; width: 36px; height: 36px;
-    display: grid; place-items: center; border: 0; background: none; color: inherit; cursor: pointer;
-  }
-  .stl-modal__summary { display: flex; gap: 1rem; margin-bottom: 1.25rem; padding-top: 0.5rem; }
-  .stl-modal__image { width: 96px; height: 120px; object-fit: cover; flex: none; background: #eee; }
-  .stl-modal__info { min-width: 0; }
-  .stl-modal__title { margin: 0 0 0.75rem; font-size: 1.1rem; font-weight: 400; padding-right: 1.5rem; }
-  .stl-modal__price { margin: 0 0 0.5rem; font-size: 1.1rem; }
-  .stl-modal__price s { opacity: 0.5; margin-left: 0.5rem; font-size: 0.9em; }
-  .stl-modal__description {
-    margin: 0; font-size: 0.9rem; line-height: 1.3;
-    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
-  }
-
-  /* Option groups */
-  .stl-modal__group { margin-bottom: 1rem; }
-  .stl-modal__label { display: block; margin-bottom: 0.4rem; font-size: 0.95rem; }
-  .stl-modal__segments { display: flex; border: 1px solid var(--stl-line); }
-  .stl-modal__segment {
-    flex: 1; padding: 0.8rem 1rem; text-align: left; border: 0;
-    background: var(--stl-paper); color: inherit; font: inherit; font-size: 1rem; cursor: pointer;
-  }
-  .stl-modal__segment[aria-checked='true'] { box-shadow: inset 4px 0 0 var(--stl-ink); }
-  .stl-modal__segment.is-unavailable { opacity: 0.4; text-decoration: line-through; }
-  .stl-modal__segment:focus-visible { outline: 2px solid var(--stl-ink); outline-offset: -4px; }
-  .stl-modal__select {
-    width: 100%; padding: 0.8rem 2.5rem 0.8rem 1rem;
-    border: 1px solid var(--stl-line); border-radius: 0; background-color: var(--stl-paper);
-    font: inherit; font-size: 1rem; color: inherit; appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='8' fill='none' stroke='%23000' stroke-width='1.5'%3E%3Cpath d='M1 1l6 6 6-6'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 1rem center;
-  }
-  .stl-modal__error { margin: 0 0 0.75rem; color: #b00020; font-size: 0.9rem; }
-  .stl-modal__add {
-    width: 100%; margin-top: 1rem; padding: 1.1rem 1.25rem;
-    display: flex; justify-content: center; align-items: center; gap: 1.5rem;
-    border: 0; background: var(--stl-ink); color: var(--stl-paper);
-    font: inherit; letter-spacing: 0.02em; text-transform: uppercase; cursor: pointer;
-  }
-  .stl-modal__add:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  /* Stop the page behind the popup from scrolling. */
-  html.stl-scroll-lock { overflow: hidden; }
-
-  /* ---------- Tablet / desktop ---------- */
-  @media (min-width: 750px) {
-    .stl { padding: 3rem 2rem; }
-    .stl__grid { grid-template-columns: repeat(3, 1fr); }
-    .stl-modal { width: 440px; max-width: calc(100vw - 2rem); margin: auto; padding: 2rem; }
-    .stl-modal__image { width: 120px; height: 140px; }
-  }
-  @media (prefers-reduced-motion: reduce) { .stl__hotspot { transition: none; } }
-</style>
-{% endraw %}
-
-{% comment %} ============================== MARKUP ============================== {% endcomment %}
-<section
-  class="stl"
-  id="stl-{{ section.id }}"
-  data-shop-the-look
-  data-currency="{{ cart.currency.iso_code }}"
-  data-locale="{{ request.locale.iso_code }}"
-  data-cart-add-url="{{ routes.cart_add_url }}.js"
-  data-cart-url="{{ routes.cart_url }}.js"
-  {%- if bonus != blank and bonus_variant.available %}
-  data-bonus-product-id="{{ bonus.id }}"
-  data-bonus-variant-id="{{ bonus_variant.id }}"
-  data-bonus-trigger="{{ section.settings.bundle_color | downcase | escape }}|{{ section.settings.bundle_size | downcase | escape }}"
-  {%- endif %}
-  data-label-add="Add to cart"
-  data-label-adding="Adding…"
-  data-label-added="Added ✓"
-  data-label-sold-out="Sold out"
-  data-label-choose="Choose your"
->
-  <div class="stl__inner">
-    {%- if section.settings.heading != blank -%}
-      <h2 class="stl__heading">{{ section.settings.heading | escape }}</h2>
-    {%- endif -%}
-
-    <div class="stl__grid">
-      {%- for block in section.blocks -%}
-        {%- assign product = block.settings.product -%}
-        {%- comment %} Fall back to the product's own photo if no image was chosen. {% endcomment -%}
-        {%- assign image = block.settings.image | default: product.featured_image -%}
-        {%- assign alt = image.alt | default: product.title | escape -%}
-
-        <div class="stl__item" {{ block.shopify_attributes }}>
-          {%- if image != blank -%}
+  <div class="lookbook__grid">
+    {%- for block in section.blocks -%}
+      {%- assign product = block.settings.product -%}
+      <div class="lookbook__item" {{ block.shopify_attributes }}>
+        <div class="lookbook__media">
+          {%- if block.settings.image != blank -%}
             {{
-              image
-              | image_url: width: 800
+              block.settings.image
+              | image_url: width: 1000
               | image_tag:
                 loading: 'lazy',
-                class: 'stl__image',
-                widths: '300, 450, 600, 800',
+                widths: '300, 500, 700, 1000',
                 sizes: '(min-width: 750px) 33vw, 50vw',
-                alt: alt
+                class: 'lookbook__image'
             }}
           {%- else -%}
-            <div class="stl__image stl__image--placeholder">{{ 'image' | placeholder_svg_tag }}</div>
+            {{ 'lifestyle-1' | placeholder_svg_tag: 'lookbook__image placeholder-svg' }}
           {%- endif -%}
 
           {%- if product != blank -%}
             <button
               type="button"
-              class="stl__hotspot"
-              style="--x: {{ block.settings.hotspot_x }}%; --y: {{ block.settings.hotspot_y }}%;"
-              data-product-id="{{ product.id }}"
+              class="lookbook__hotspot"
+              style="left: {{ block.settings.hotspot_x }}%; top: {{ block.settings.hotspot_y }}%;"
+              aria-label="{{ 'products.product.quick_add' | t | default: 'Quick view' }}: {{ product.title | escape }}"
               aria-haspopup="dialog"
-              aria-label="Quick view: {{ product.title | escape }}"
-            ></button>
-
-            {%- comment %} Product data parsed once by the script below. {% endcomment %}
-            <script type="application/json" data-product-json>{{ product | json }}</script>
+              data-lookbook-open="LookbookModal-{{ block.id }}"
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true" focusable="false">
+                <path d="M5 0v10M0 5h10" stroke="currentColor" stroke-width="1.4" fill="none"/>
+              </svg>
+            </button>
           {%- endif -%}
         </div>
-      {%- endfor -%}
-    </div>
+      </div>
+    {%- endfor -%}
   </div>
 
-  {%- comment %} One shared popup per section; JS fills it for the chosen product. {% endcomment %}
-  <dialog class="stl-modal" data-modal aria-labelledby="stl-title-{{ section.id }}">
-    <button type="button" class="stl-modal__close" data-close aria-label="Close">
-      <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
-    </button>
+  {%- comment -%} ===== Popups (one per product) ===== {%- endcomment -%}
+  {%- for block in section.blocks -%}
+    {%- assign product = block.settings.product -%}
+    {%- if product != blank -%}
+      {%- assign form_id = 'LookbookForm-' | append: block.id -%}
+      <lookbook-modal
+        id="LookbookModal-{{ block.id }}"
+        class="lookbook-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="{{ product.title | escape }}"
+        hidden
+      >
+        <div class="lookbook-modal__overlay" data-lookbook-close></div>
 
-    <div class="stl-modal__summary">
-      <img class="stl-modal__image" data-image alt="" width="120" height="140" hidden>
-      <div class="stl-modal__info">
-        <h3 class="stl-modal__title" id="stl-title-{{ section.id }}" data-title></h3>
-        <p class="stl-modal__price" data-price></p>
-        <p class="stl-modal__description" data-description></p>
-      </div>
-    </div>
+        <div class="lookbook-modal__content">
+          <button type="button" class="lookbook-modal__close" data-lookbook-close aria-label="{{ 'accessibility.close' | t }}">
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            </svg>
+          </button>
 
-    <div class="stl-modal__options" data-options></div>
+          <div class="lookbook-modal__top">
+            <div class="lookbook-modal__thumb">
+              {%- assign thumb = product.featured_image | default: block.settings.image -%}
+              {%- if thumb != blank -%}
+                {{ thumb | image_url: width: 300 | image_tag: loading: 'lazy', widths: '150, 300', alt: product.title }}
+              {%- endif -%}
+            </div>
+            <div class="lookbook-modal__info">
+              <p class="lookbook-modal__title">{{ product.title | escape }}</p>
+              <p class="lookbook-modal__price" data-lookbook-price>
+                {{ product.selected_or_first_available_variant.price | money }}
+              </p>
+              <p class="lookbook-modal__description">
+                {{ product.description | strip_html | truncatewords: 25 }}
+              </p>
+            </div>
+          </div>
 
-    <p class="stl-modal__error" data-error role="alert" hidden></p>
+          <form
+            method="post"
+            action="{{ routes.cart_add_url }}"
+            id="{{ form_id }}"
+            class="lookbook-modal__form"
+            data-lookbook-form
+            novalidate
+          >
+            <input type="hidden" name="id" value="" data-lookbook-variant-id>
 
-    <button type="button" class="stl-modal__add" data-add>
-      <span data-add-label>Add to cart</span>
-      <svg viewBox="0 0 36 10" width="36" height="10" aria-hidden="true"><path d="M0 5h34M30 1l4 4-4 4" stroke="currentColor" stroke-width="1" fill="none"/></svg>
-    </button>
-  </dialog>
-</section>
+            {%- unless product.has_only_default_variant -%}
+              {%- for option in product.options_with_values -%}
+                {%- assign option_name_down = option.name | downcase -%}
+                {%- assign is_color = false -%}
+                {%- if option_name_down contains 'color' or option_name_down contains 'colour' -%}
+                  {%- assign is_color = true -%}
+                {%- endif -%}
 
-{% comment %} ============================== SCRIPT ============================== {% endcomment %}
-{% raw %}
-<script>
-/**
- * "Shop the look" controller (vanilla JS).
- *
- *  1. Product JSON embedded by Liquid is parsed once per section.
- *  2. Clicking a hotspot opens the shared <dialog> for that product.
- *  3. "Add to cart" POSTs to /cart/add.js. If the chosen variant matches the
- *     bonus trigger (e.g. Black + Medium), the bonus product is added in the
- *     same request, so both items are added together or neither is.
- */
-(() => {
-  'use strict';
+                <div class="lookbook-modal__option" data-option-index="{{ forloop.index0 }}">
+                  {%- if is_color -%}
+                    <span class="lookbook-modal__label">{{ option.name | escape }}</span>
+                    <div class="lookbook-modal__swatches" role="radiogroup" aria-label="{{ option.name | escape }}">
+                      {%- for value in option.values -%}
+                        <input
+                          type="radio"
+                          id="{{ form_id }}-{{ option.position }}-{{ forloop.index0 }}"
+                          name="{{ form_id }}-option-{{ option.position }}"
+                          value="{{ value | escape }}"
+                          data-option-input
+                          {% if option.selected_value == value %}checked{% endif %}
+                        >
+                        <label
+                          for="{{ form_id }}-{{ option.position }}-{{ forloop.index0 }}"
+                          class="lookbook-modal__swatch"
+                          style="--swatch-color: {{ value | handle }};"
+                        >{{ value | escape }}</label>
+                      {%- endfor -%}
+                    </div>
+                  {%- else -%}
+                    <label class="lookbook-modal__label" for="{{ form_id }}-select-{{ option.position }}">{{ option.name | escape }}</label>
+                    <div class="lookbook-modal__select-wrap">
+                      <select
+                        id="{{ form_id }}-select-{{ option.position }}"
+                        class="lookbook-modal__select"
+                        data-option-input
+                      >
+                        <option value="" disabled selected>Choose your {{ option.name | downcase | escape }}</option>
+                        {%- for value in option.values -%}
+                          <option value="{{ value | escape }}">{{ value | escape }}</option>
+                        {%- endfor -%}
+                      </select>
+                      <svg class="lookbook-modal__chevron" width="14" height="8" viewBox="0 0 14 8" aria-hidden="true" focusable="false">
+                        <path d="M1 1l6 6 6-6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                      </svg>
+                    </div>
+                  {%- endif -%}
+                </div>
+              {%- endfor -%}
+            {%- endunless -%}
 
-  const SELECTOR = '[data-shop-the-look]';
+            <p class="lookbook-modal__error" data-lookbook-error role="alert" hidden></p>
 
-  /* ------------------------------ Helpers ------------------------------ */
+            <button type="submit" class="lookbook-modal__atc" data-lookbook-atc>
+              <span data-lookbook-atc-text>ADD TO CART</span>
+              <svg width="30" height="10" viewBox="0 0 30 10" aria-hidden="true" focusable="false">
+                <path d="M0 5h28M24 1l4 4-4 4" stroke="currentColor" stroke-width="1.2" fill="none"/>
+              </svg>
+            </button>
+          </form>
 
-  /** Create an element with attributes and children in one call. */
-  const h = (tag, attrs = {}, ...children) => {
-    const node = document.createElement(tag);
-    for (const [key, value] of Object.entries(attrs)) {
-      if (key === 'text') node.textContent = value;
-      else if (key === 'className') node.className = value;
-      else node.setAttribute(key, value);
-    }
-    node.append(...children);
-    return node;
-  };
+          {%- comment -%} Variant data, rendered from the product so options/prices/availability stay dynamic {%- endcomment -%}
+          <script type="application/json" data-lookbook-variants>
+            [
+              {%- for variant in product.variants -%}
+                {
+                  "id": {{ variant.id }},
+                  "options": {{ variant.options | json }},
+                  "available": {{ variant.available | json }},
+                  "price": {{ variant.price | money | json }}
+                }{% unless forloop.last %},{% endunless %}
+              {%- endfor -%}
+            ]
+          </script>
+        </div>
+      </lookbook-modal>
+    {%- endif -%}
+  {%- endfor -%}
+</div>
 
-  /** Plain text from an HTML string (DOMParser never runs scripts). */
-  const stripHtml = (html = '') =>
-    new DOMParser().parseFromString(html, 'text/html').body.textContent.trim();
+{%- stylesheet -%}
+  .lookbook__heading { margin: 0 0 2rem; }
+  .lookbook__grid {
+    display: grid;
+    grid-template-columns: repeat(var(--lb-cols-mobile), 1fr);
+    gap: var(--lb-gap);
+  }
+  @media screen and (min-width: 750px) {
+    .lookbook__grid { grid-template-columns: repeat(var(--lb-cols-desktop), 1fr); }
+  }
+  .lookbook__media { position: relative; aspect-ratio: 1 / 1; overflow: hidden; }
+  .lookbook__image { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-  /** Ask the Shopify CDN for a smaller image. */
-  const resizeImage = (src, width) => {
-    try {
-      const url = new URL(src, window.location.href);
-      url.searchParams.set('width', width);
-      return url.toString();
-    } catch {
-      return src;
-    }
-  };
+  .lookbook__hotspot {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 2.2rem; height: 2.2rem;
+    border-radius: 50%;
+    border: 0;
+    background: rgba(255,255,255,.9);
+    color: #000;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 0 0 0 rgba(255,255,255,.7);
+    transition: transform .2s ease, background .2s ease;
+    padding: 0;
+  }
+  .lookbook__hotspot:hover { transform: translate(-50%, -50%) scale(1.15); background: #fff; }
+  .lookbook__hotspot:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
 
-  /** Falls back to USD/en if the currency or locale is missing or invalid. */
-  const makeMoney = (locale, currency) => {
-    try {
-      return new Intl.NumberFormat(locale, { style: 'currency', currency });
-    } catch {
-      return new Intl.NumberFormat('en', { style: 'currency', currency: 'USD' });
-    }
-  };
+  /* Modal */
+  .lookbook-modal[hidden] { display: none; }
+  .lookbook-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; }
+  .lookbook-modal__overlay { position: absolute; inset: 0; background: rgba(0,0,0,.45); }
+  .lookbook-modal__content {
+    position: relative;
+    background: #fff;
+    color: #000;
+    width: calc(100% - 3rem);
+    max-width: 34rem;
+    max-height: calc(100vh - 3rem);
+    overflow-y: auto;
+    padding: 2rem 1.6rem 1.8rem;
+  }
+  .lookbook-modal__close {
+    position: absolute; top: 1rem; right: 1rem;
+    background: none; border: 0; cursor: pointer; padding: .6rem; color: inherit;
+  }
+  .lookbook-modal__top { display: flex; gap: 1.2rem; margin-bottom: 1.6rem; }
+  .lookbook-modal__thumb { flex: 0 0 11rem; max-width: 11rem; }
+  .lookbook-modal__thumb img { width: 100%; height: auto; display: block; }
+  .lookbook-modal__info { flex: 1; min-width: 0; }
+  .lookbook-modal__title { margin: 0 0 1rem; font-size: 1.5rem; }
+  .lookbook-modal__price { margin: 0 0 1rem; font-size: 1.8rem; font-family: var(--font-heading-family); }
+  .lookbook-modal__description { margin: 0; font-size: 1.2rem; line-height: 1.4; }
 
-  /** Colour-like options are shown as buttons, everything else as a <select>. */
-  const isSwatchOption = (name) => /colou?r/i.test(name);
+  .lookbook-modal__option { margin-bottom: 1.4rem; }
+  .lookbook-modal__label { display: block; font-size: 1.2rem; margin-bottom: .5rem; }
+  .lookbook-modal__swatches { display: flex; }
+  .lookbook-modal__swatches input { position: absolute; opacity: 0; pointer-events: none; }
+  .lookbook-modal__swatch {
+    flex: 1;
+    border: 1px solid #000;
+    border-left-width: 4px;
+    border-left-color: var(--swatch-color, #000);
+    padding: .9rem 1rem;
+    font-size: 1.5rem;
+    cursor: pointer;
+    background: #fff;
+  }
+  .lookbook-modal__swatch + input + .lookbook-modal__swatch,
+  .lookbook-modal__swatches input + .lookbook-modal__swatch + input + .lookbook-modal__swatch { border-left-width: 4px; }
+  .lookbook-modal__swatches input:checked + .lookbook-modal__swatch { background: #f2f2f2; box-shadow: inset 0 0 0 1px #000; }
+  .lookbook-modal__swatches input:focus-visible + .lookbook-modal__swatch { outline: 2px solid #000; outline-offset: 2px; }
+  .lookbook-modal__swatches input.is-unavailable + .lookbook-modal__swatch { opacity: .45; text-decoration: line-through; }
 
-  /* --------------------------- Main component --------------------------- */
+  .lookbook-modal__select-wrap { position: relative; }
+  .lookbook-modal__select {
+    width: 100%;
+    appearance: none; -webkit-appearance: none;
+    border: 1px solid #000; border-radius: 0; background: #fff;
+    padding: .9rem 4rem .9rem 1rem;
+    font-size: 1.4rem; color: inherit; cursor: pointer;
+  }
+  .lookbook-modal__chevron { position: absolute; right: 1.4rem; top: 50%; transform: translateY(-50%); pointer-events: none; }
 
-  class ShopTheLook {
-    constructor(root) {
-      this.root = root;
-      this.modal = root.querySelector('[data-modal]');
-      if (!this.modal) throw new Error('Popup <dialog> not found');
+  .lookbook-modal__error { color: #b00020; font-size: 1.2rem; margin: 0 0 1rem; }
+  .lookbook-modal__atc {
+    width: 100%;
+    display: flex; align-items: center; justify-content: center; gap: 1.6rem;
+    background: #000; color: #fff; border: 0; cursor: pointer;
+    padding: 1.4rem 1rem; font-size: 1.4rem; letter-spacing: .04em; margin-top: 2rem;
+  }
+  .lookbook-modal__atc[disabled] { opacity: .5; cursor: not-allowed; }
+  body.lookbook-modal-open { overflow: hidden; }
+{%- endstylesheet -%}
 
-      this.dom = {
-        image: this.modal.querySelector('[data-image]'),
-        title: this.modal.querySelector('[data-title]'),
-        price: this.modal.querySelector('[data-price]'),
-        description: this.modal.querySelector('[data-description]'),
-        options: this.modal.querySelector('[data-options]'),
-        error: this.modal.querySelector('[data-error]'),
-        add: this.modal.querySelector('[data-add]'),
-        addLabel: this.modal.querySelector('[data-add-label]'),
-      };
+{%- javascript -%}
+  (function () {
+    if (window.__lookbookInit) return;
+    window.__lookbookInit = true;
 
-      const d = root.dataset;
-      this.config = {
-        addUrl: d.cartAddUrl || '/cart/add.js',
-        cartUrl: d.cartUrl || '/cart.js',
-        labels: {
-          add: d.labelAdd || 'Add to cart',
-          adding: d.labelAdding || 'Adding…',
-          added: d.labelAdded || 'Added ✓',
-          soldOut: d.labelSoldOut || 'Sold out',
-          choose: d.labelChoose || 'Choose your',
-        },
-        // Bonus is optional: it only exists when configured and in stock.
-        bonus: d.bonusVariantId
-          ? {
-              productId: String(d.bonusProductId),
-              variantId: Number(d.bonusVariantId),
-              trigger: (d.bonusTrigger || '')
-                .split('|')
-                .map((s) => s.trim().toLowerCase())
-                .filter(Boolean),
-            }
-          : null,
-      };
+    class LookbookModal extends HTMLElement {
+      connectedCallback() {
+        this.form = this.querySelector('[data-lookbook-form]');
+        this.variants = JSON.parse(this.querySelector('[data-lookbook-variants]').textContent);
+        this.inputs = Array.from(this.querySelectorAll('[data-option-input]'));
+        this.variantInput = this.querySelector('[data-lookbook-variant-id]');
+        this.priceEl = this.querySelector('[data-lookbook-price]');
+        this.errorEl = this.querySelector('[data-lookbook-error]');
+        this.atc = this.querySelector('[data-lookbook-atc]');
+        this.atcText = this.querySelector('[data-lookbook-atc-text]');
+        this.defaultAtcLabel = this.atcText.textContent;
 
-      this.money = makeMoney(d.locale || 'en', d.currency || 'USD');
-      this.products = this.parseProducts();
-      this.state = this.emptyState();
-      this.busy = false;
+        this.querySelectorAll('[data-lookbook-close]').forEach((el) =>
+          el.addEventListener('click', () => this.close())
+        );
+        this.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') this.close();
+        });
+        this.inputs.forEach((input) => input.addEventListener('change', () => this.onOptionChange()));
+        this.form.addEventListener('submit', (e) => this.onSubmit(e));
 
-      this.bindEvents();
-    }
+        this.onOptionChange();
+      }
 
-    emptyState() {
-      return {
-        product: null,
-        trigger: null,
-        hasVariants: false,
-        names: [],
-        selected: [],
-        variant: null,
-      };
-    }
+      open(trigger) {
+        this.trigger = trigger;
+        this.hidden = false;
+        document.body.classList.add('lookbook-modal-open');
+        const focusTarget = this.querySelector('.lookbook-modal__close');
+        focusTarget && focusTarget.focus();
+      }
 
-    /** Read every embedded product JSON block once. */
-    parseProducts() {
-      const map = new Map();
-      this.root.querySelectorAll('[data-product-json]').forEach((script) => {
-        try {
-          const product = JSON.parse(script.textContent);
-          map.set(String(product.id), product);
-        } catch (err) {
-          console.warn('[shop-the-look] Invalid product JSON', err);
+      close() {
+        this.hidden = true;
+        document.body.classList.remove('lookbook-modal-open');
+        this.trigger && this.trigger.focus();
+      }
+
+      selectedOptions() {
+        // One input group per option; read selected value (or null)
+        const groups = Array.from(this.querySelectorAll('.lookbook-modal__option'));
+        return groups.map((group) => {
+          const select = group.querySelector('select');
+          if (select) return select.value || null;
+          const checked = group.querySelector('input:checked');
+          return checked ? checked.value : null;
+        });
+      }
+
+      currentVariant() {
+        const selected = this.selectedOptions();
+        // Products with only the default variant have no option groups
+        if (!selected.length) return this.variants[0];
+        if (selected.some((v) => v === null)) return null;
+        return this.variants.find((variant) =>
+          variant.options.every((opt, i) => opt === selected[i])
+        );
+      }
+
+      onOptionChange() {
+        this.errorEl.hidden = true;
+        const variant = this.currentVariant();
+        this.updateAvailability();
+
+        if (variant) {
+          this.variantInput.value = variant.id;
+          this.priceEl.textContent = variant.price;
+          this.atc.disabled = !variant.available;
+          this.atcText.textContent = variant.available ? this.defaultAtcLabel : 'SOLD OUT';
+        } else {
+          this.variantInput.value = '';
+          const selected = this.selectedOptions();
+          const incomplete = selected.some((v) => v === null);
+          this.atc.disabled = !incomplete ? true : false;
+          this.atcText.textContent = !incomplete ? 'UNAVAILABLE' : this.defaultAtcLabel;
         }
-      });
-      return map;
-    }
+      }
 
-    /** Shopify prices are in cents. */
-    formatPrice(cents) {
-      return this.money.format(cents / 100);
-    }
+      // Mark swatch values that have no available variant given the other selections
+      updateAvailability() {
+        const groups = Array.from(this.querySelectorAll('.lookbook-modal__option'));
+        const selected = this.selectedOptions();
+        groups.forEach((group, index) => {
+          group.querySelectorAll('input[type="radio"]').forEach((input) => {
+            const exists = this.variants.some(
+              (variant) =>
+                variant.available &&
+                variant.options[index] === input.value &&
+                variant.options.every((opt, i) => i === index || selected[i] === null || opt === selected[i])
+            );
+            input.classList.toggle('is-unavailable', !exists);
+          });
+        });
+      }
 
-    /* ------------------------------ Events ------------------------------ */
+      showError(message) {
+        this.errorEl.textContent = message;
+        this.errorEl.hidden = false;
+      }
 
-    bindEvents() {
-      // One listener for all hotspots (event delegation).
-      this.root.addEventListener('click', (event) => {
-        const hotspot = event.target.closest('.stl__hotspot');
-        if (hotspot && this.root.contains(hotspot)) this.open(hotspot);
-      });
-
-      this.modal.addEventListener('click', (event) => {
-        if (event.target.closest('[data-close]')) {
-          this.close();
+      async onSubmit(event) {
+        event.preventDefault();
+        const variant = this.currentVariant();
+        if (!variant) {
+          this.showError('Please choose all options before adding to cart.');
           return;
         }
-        // Clicks on the backdrop land on the <dialog> outside its box.
-        const r = this.modal.getBoundingClientRect();
-        const outside =
-          event.clientX < r.left || event.clientX > r.right ||
-          event.clientY < r.top || event.clientY > r.bottom;
-        if (outside) this.close();
-      });
+        if (!variant.available) return;
 
-      // Fires for every close path: button, backdrop, Esc.
-      this.modal.addEventListener('close', () => this.onClosed());
+        this.atc.disabled = true;
+        this.atc.setAttribute('aria-busy', 'true');
+        this.atcText.textContent = 'ADDING...';
 
-      this.dom.options.addEventListener('click', (event) => {
-        const btn = event.target.closest('.stl-modal__segment');
-        if (btn) this.select(Number(btn.dataset.index), btn.dataset.value);
-      });
+        try {
+          const cartEl = document.querySelector('cart-drawer') || document.querySelector('cart-notification');
+          const body = { items: [{ id: variant.id, quantity: 1 }] };
+          if (cartEl && typeof cartEl.getSectionsToRender === 'function') {
+            body.sections = cartEl.getSectionsToRender().map((s) => s.id).join(',');
+            body.sections_url = window.location.pathname;
+          }
 
-      this.dom.options.addEventListener('change', (event) => {
-        const select = event.target.closest('.stl-modal__select');
-        if (select) this.select(Number(select.dataset.index), select.value);
-      });
-
-      this.dom.add.addEventListener('click', () => this.addToCart());
-    }
-
-    /* ------------------------- Open / close popup ------------------------ */
-
-    open(trigger) {
-      const product = this.products.get(String(trigger.dataset.productId));
-      if (!product) {
-        console.warn('[shop-the-look] No product data for id', trigger.dataset.productId);
-        return;
-      }
-
-      const rawNames = (product.options || []).map((o) => (typeof o === 'string' ? o : o.name));
-      // A product with only the default "Title" option has no real variants.
-      const hasVariants = !(rawNames.length === 1 && rawNames[0] === 'Title');
-
-      this.state = {
-        product,
-        trigger,
-        hasVariants,
-        names: hasVariants ? rawNames : [],
-        selected: [],
-        variant: hasVariants ? null : product.variants[0],
-      };
-      this.busy = false;
-
-      this.render();
-      this.modal.showModal();
-      document.documentElement.classList.add('stl-scroll-lock');
-    }
-
-    close() {
-      if (this.modal.open) this.modal.close();
-    }
-
-    onClosed() {
-      document.documentElement.classList.remove('stl-scroll-lock');
-      this.state.trigger?.focus(); // return focus to the hotspot
-    }
-
-    /* ------------------------------ Rendering ---------------------------- */
-
-    render() {
-      const { product } = this.state;
-      this.dom.title.textContent = product.title;
-      this.dom.description.textContent = stripHtml(product.description);
-      this.renderOptions();
-      this.refresh();
-    }
-
-    /** One control per product option, built from product data. */
-    renderOptions() {
-      const { names, hasVariants } = this.state;
-      this.dom.options.replaceChildren();
-      if (!hasVariants) return;
-
-      names.forEach((name, index) => {
-        const values = this.optionValues(index);
-        const labelId = `${this.root.id}-opt-${index}-label`;
-        const selectId = `${this.root.id}-opt-${index}`;
-
-        if (isSwatchOption(name)) {
-          // Pre-select the first in-stock colour so the popup opens in a useful state.
-          this.state.selected[index] =
-            values.find((v) => this.isAvailable(index, v)) ?? values[0];
-
-          this.dom.options.append(
-            h('div', { className: 'stl-modal__group' },
-              h('span', { className: 'stl-modal__label', id: labelId, text: name }),
-              h('div', { className: 'stl-modal__segments', role: 'radiogroup', 'aria-labelledby': labelId },
-                ...values.map((value) => h('button', {
-                  type: 'button',
-                  className: 'stl-modal__segment',
-                  role: 'radio',
-                  'data-index': index,
-                  'data-value': value,
-                  text: value,
-                }))
-              )
-            )
-          );
-        } else {
-          const placeholder = h('option', {
-            value: '',
-            text: `${this.config.labels.choose} ${name.toLowerCase()}`,
+          const response = await fetch(`${window.Shopify.routes.root}cart/add.js`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify(body),
           });
-          placeholder.disabled = true;
-          placeholder.selected = true;
+          const data = await response.json();
 
-          const select = h('select', {
-            className: 'stl-modal__select',
-            id: selectId,
-            'data-index': index,
-          },
-            placeholder,
-            ...values.map((value) => h('option', {
-              value,
-              text: value,
-              'data-option-value': value,
-            }))
-          );
+          if (!response.ok || data.status) {
+            this.showError(data.description || data.message || 'Could not add this item to the cart.');
+            return;
+          }
 
-          this.dom.options.append(
-            h('div', { className: 'stl-modal__group' },
-              h('label', { className: 'stl-modal__label', for: selectId, text: name }),
-              select
-            )
-          );
+          this.close();
+
+          if (cartEl && typeof cartEl.renderContents === 'function') {
+            // Dawn's cart drawer / notification handles its own UI refresh + opening
+            cartEl.renderContents(data);
+          } else {
+            await this.refreshCartBubble();
+          }
+        } catch (err) {
+          console.error(err);
+          this.showError('Something went wrong. Please try again.');
+        } finally {
+          this.atc.removeAttribute('aria-busy');
+          this.onOptionChange();
         }
-      });
-    }
-
-    /** Unique values for option N, in variant order. */
-    optionValues(index) {
-      const key = `option${index + 1}`;
-      const values = this.state.product.variants.map((v) => v[key]).filter(Boolean);
-      return [...new Set(values)];
-    }
-
-    /** Re-sync everything that depends on the current selection. */
-    refresh() {
-      const { product, hasVariants, names, selected } = this.state;
-
-      if (hasVariants) {
-        const complete = names.every((_, i) => selected[i]);
-        this.state.variant = complete ? this.findVariant(selected) : null;
       }
 
-      const { variant } = this.state;
-      const shown = variant ?? this.defaultVariant();
-
-      this.renderPrice(shown);
-      this.renderImage(shown.featured_image?.src || product.featured_image);
-      this.syncControls();
-
-      const soldOut = Boolean(variant) && !variant.available;
-      this.setButton(
-        soldOut ? this.config.labels.soldOut : this.config.labels.add,
-        soldOut || this.busy
-      );
-    }
-
-    defaultVariant() {
-      const { product } = this.state;
-      return product.variants.find((v) => v.available) ?? product.variants[0];
-    }
-
-    renderPrice(variant) {
-      this.dom.price.replaceChildren(this.formatPrice(variant.price));
-      if (variant.compare_at_price > variant.price) {
-        this.dom.price.append(h('s', { text: this.formatPrice(variant.compare_at_price) }));
+      async refreshCartBubble() {
+        try {
+          const res = await fetch(`${window.Shopify.routes.root}?sections=cart-icon-bubble`);
+          const sections = await res.json();
+          const bubble = document.getElementById('cart-icon-bubble');
+          if (bubble && sections['cart-icon-bubble']) {
+            const html = new DOMParser().parseFromString(sections['cart-icon-bubble'], 'text/html');
+            const fresh = html.querySelector('.shopify-section');
+            if (fresh) bubble.innerHTML = fresh.innerHTML;
+          }
+        } catch (e) { /* cart still updated server-side */ }
       }
     }
 
-    renderImage(src) {
-      this.dom.image.alt = this.state.product.title;
-      if (src) {
-        this.dom.image.src = resizeImage(src, 240);
-        this.dom.image.hidden = false;
-      } else {
-        this.dom.image.removeAttribute('src');
-        this.dom.image.hidden = true;
-      }
-    }
+    if (!customElements.get('lookbook-modal')) customElements.define('lookbook-modal', LookbookModal);
 
-    /** Update checked state and sold-out hints without rebuilding the DOM. */
-    syncControls() {
-      this.dom.options.querySelectorAll('.stl-modal__segment').forEach((btn) => {
-        const index = Number(btn.dataset.index);
-        const value = btn.dataset.value;
-        btn.setAttribute('aria-checked', String(this.state.selected[index] === value));
-        btn.classList.toggle('is-unavailable', !this.isAvailable(index, value));
-      });
-
-      this.dom.options.querySelectorAll('option[data-option-value]').forEach((opt) => {
-        const index = Number(opt.parentElement.dataset.index);
-        const value = opt.dataset.optionValue;
-        opt.textContent = this.isAvailable(index, value)
-          ? value
-          : `${value} – ${this.config.labels.soldOut}`;
-      });
-    }
-
-    setButton(label, disabled) {
-      this.dom.addLabel.textContent = label;
-      this.dom.add.disabled = disabled;
-    }
-
-    setError(message = '') {
-      this.dom.error.textContent = message;
-      this.dom.error.hidden = !message;
-    }
-
-    /* ---------------------------- Variant logic -------------------------- */
-
-    select(index, value) {
-      if (this.busy) return;
-      this.state.selected[index] = value;
-      this.setError('');
-      this.refresh();
-    }
-
-    /** The variant whose options match every selected value. */
-    findVariant(selected) {
-      const { product, names } = this.state;
-      return product.variants.find((v) =>
-        names.every((_, i) => v[`option${i + 1}`] === selected[i])
-      ) ?? null;
-    }
-
-    /** Is there an in-stock variant with this value, given the other picks? */
-    isAvailable(index, value) {
-      const { product, names, selected } = this.state;
-      return product.variants.some((v) =>
-        v.available &&
-        v[`option${index + 1}`] === value &&
-        names.every((_, i) =>
-          i === index || !selected[i] || v[`option${i + 1}`] === selected[i])
-      );
-    }
-
-    /** True when the variant matches every bonus trigger (e.g. black + medium). */
-    qualifiesForBonus(variant) {
-      const { bonus } = this.config;
-      if (!bonus || String(this.state.product.id) === bonus.productId) return false;
-      const values = [variant.option1, variant.option2, variant.option3]
-        .filter(Boolean)
-        .map((v) => v.toLowerCase());
-      return bonus.trigger.length > 0 &&
-        bonus.trigger.every((needle) => values.includes(needle));
-    }
-
-    /* ----------------------------- Add to cart --------------------------- */
-
-    async addToCart() {
-      if (this.busy) return;
-      const { variant, names, selected } = this.state;
-
-      if (!variant) {
-        const missing = names.find((_, i) => !selected[i]) ?? 'option';
-        this.setError(`${this.config.labels.choose} ${missing.toLowerCase()}`);
-        return;
-      }
-
-      const items = [{ id: variant.id, quantity: 1 }];
-      if (this.qualifiesForBonus(variant)) {
-        items.push({ id: this.config.bonus.variantId, quantity: 1 });
-      }
-
-      this.busy = true;
-      this.setError('');
-      this.setButton(this.config.labels.adding, true);
-
-      try {
-        const response = await fetch(this.config.addUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ items }),
-        });
-
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(data.description || data.message || 'Could not add to cart.');
-        }
-
-        this.busy = false;
-        this.setButton(this.config.labels.added, true);
-        this.notifyCartUpdated().catch((err) =>
-          console.warn('[shop-the-look] Could not refresh cart', err));
-        setTimeout(() => this.close(), 900);
-      } catch (err) {
-        this.busy = false;
-        this.setError(err.message);
-        this.refresh(); // restores the button label and state
-      }
-    }
-
-    /** Refresh cart counters and tell the rest of the theme. */
-    async notifyCartUpdated() {
-      const response = await fetch(this.config.cartUrl, { headers: { Accept: 'application/json' } });
-      const cart = await response.json();
-
-      document
-        .querySelectorAll('[data-cart-count], .cart-count-bubble span[aria-hidden]')
-        .forEach((el) => { el.textContent = cart.item_count; });
-
-      document.dispatchEvent(new CustomEvent('shop-the-look:cart-updated', { detail: { cart } }));
-    }
-  }
-
-  /* ------------------------------ Bootstrap ------------------------------ */
-
-  /** Initialise every section in scope. Safe to call repeatedly. */
-  const init = (scope = document) => {
-    const nodes = [];
-    if (scope instanceof Element && scope.matches(SELECTOR)) nodes.push(scope);
-    nodes.push(...scope.querySelectorAll(SELECTOR));
-
-    nodes.forEach((el) => {
-      if (el.__stl) return; // already initialised
-      try {
-        el.__stl = new ShopTheLook(el);
-      } catch (err) {
-        console.error('[shop-the-look] init failed:', err);
-      }
+    document.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-lookbook-open]');
+      if (!btn) return;
+      const modal = document.getElementById(btn.dataset.lookbookOpen);
+      if (modal) modal.open(btn);
     });
-  };
-
-  init();
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => init());
-  }
-
-  // Theme editor: re-initialise sections after they are re-rendered.
-  if (!window.__stlSectionListener) {
-    window.__stlSectionListener = true;
-    document.addEventListener('shopify:section:load', (event) => init(event.target));
-  }
-})();
-</script>
-{% endraw %}
+  })();
+{%- endjavascript -%}
 
 {% schema %}
 {
-  "name": "Shop the look",
+  "name": "Lookbook",
   "tag": "section",
-  "class": "section-shop-the-look",
-  "max_blocks": 6,
+  "class": "section",
+  "max_blocks": 9,
   "settings": [
-    { "type": "text", "id": "heading", "label": "Heading", "default": "Tisso vison in the wild" },
-    { "type": "header", "content": "Automatic bonus product" },
-    { "type": "product", "id": "bundle_product", "label": "Bonus product (e.g. Soft Winter Jacket)" },
-    { "type": "text", "id": "bundle_color", "label": "Add bonus when colour is", "default": "Black" },
-    { "type": "text", "id": "bundle_size", "label": "…and size is", "default": "Medium" }
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Shop the look"
+    },
+    {
+      "type": "select",
+      "id": "heading_size",
+      "label": "Heading size",
+      "options": [
+        { "value": "h2", "label": "Medium" },
+        { "value": "h1", "label": "Large" },
+        { "value": "h0", "label": "Extra large" }
+      ],
+      "default": "h1"
+    },
+    {
+      "type": "range",
+      "id": "columns_desktop",
+      "label": "Columns on desktop",
+      "min": 2,
+      "max": 4,
+      "step": 1,
+      "default": 3
+    },
+    {
+      "type": "range",
+      "id": "columns_mobile",
+      "label": "Columns on mobile",
+      "min": 1,
+      "max": 3,
+      "step": 1,
+      "default": 1
+    },
+    {
+      "type": "range",
+      "id": "gap",
+      "label": "Gap between images",
+      "min": 0,
+      "max": 40,
+      "step": 2,
+      "unit": "px",
+      "default": 20
+    },
+    {
+      "type": "range",
+      "id": "padding_top",
+      "label": "Top padding",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "default": 36
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom",
+      "label": "Bottom padding",
+      "min": 0,
+      "max": 100,
+      "step": 4,
+      "unit": "px",
+      "default": 36
+    }
   ],
   "blocks": [
     {
       "type": "look",
       "name": "Look",
       "settings": [
-        { "type": "image_picker", "id": "image", "label": "Image", "info": "Defaults to the product's featured image." },
-        { "type": "product", "id": "product", "label": "Product" },
-        { "type": "range", "id": "hotspot_x", "label": "Hotspot – horizontal", "min": 0, "max": 100, "step": 1, "unit": "%", "default": 50 },
-        { "type": "range", "id": "hotspot_y", "label": "Hotspot – vertical", "min": 0, "max": 100, "step": 1, "unit": "%", "default": 50 }
+        {
+          "type": "image_picker",
+          "id": "image",
+          "label": "Look image"
+        },
+        {
+          "type": "product",
+          "id": "product",
+          "label": "Product"
+        },
+        {
+          "type": "range",
+          "id": "hotspot_x",
+          "label": "+ icon position (horizontal)",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "unit": "%",
+          "default": 50
+        },
+        {
+          "type": "range",
+          "id": "hotspot_y",
+          "label": "+ icon position (vertical)",
+          "min": 0,
+          "max": 100,
+          "step": 1,
+          "unit": "%",
+          "default": 50
+        }
       ]
     }
   ],
   "presets": [
     {
-      "name": "Shop the look",
+      "name": "Lookbook",
       "blocks": [
-        { "type": "look" }, { "type": "look" }, { "type": "look" },
-        { "type": "look" }, { "type": "look" }, { "type": "look" }
+        { "type": "look" },
+        { "type": "look" },
+        { "type": "look" },
+        { "type": "look" },
+        { "type": "look" },
+        { "type": "look" },
+        { "type": "look" },
+        { "type": "look" },
+        { "type": "look" }
       ]
     }
   ]
