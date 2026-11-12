@@ -611,7 +611,7 @@
 
   /** Initialise every section in scope (idempotent). */
   const init = (scope = document) =>
-    scope.querySelectorAll('[data-shop-the-look]').forEach((el) => {
+  scope.querySelectorAll('[data-shop-the-look]').forEach((el) => {
       if (el.__stl) return; // already initialised
       try {
         el.__stl = new ShopTheLook(el);
