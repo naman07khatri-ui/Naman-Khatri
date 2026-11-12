@@ -1,23 +1,12 @@
-{%- comment -%}
-  sections/shop-the-look.liquid  (SINGLE FILE: markup + CSS + JS + schema)
-  --------------------------------------------------------------------------
-  Shoppable image grid. Each block = one tile = one product (picked in the
-  theme customizer). Clicking the "+" hotspot opens a quick-buy popup whose
-  content (title, price, description, variants) is rendered by JS from the
-  product JSON embedded below. No product data is hard-coded anywhere.
-
-  Add to cart posts to /cart/add.js. For Black + Medium variants the bonus
-  product (Soft Winter Jacket) is added in the same request.
-{%- endcomment -%}
-
 {%- liquid
-  # Optional "bonus" product auto-added with certain variants. Only wired up
-  # when it exists and is purchasable, so the cart request can't fail on it.
+  # Optional bonus product, added automatically with a matching variant.
+  # Only used when the product exists and the variant is in stock.
   assign bonus = section.settings.bundle_product
   assign bonus_variant = bonus.selected_or_first_available_variant
 -%}
 
 {% comment %} ============================== STYLES ============================== {% endcomment %}
+{% raw %}
 <style>
   /* Mobile-first: 2-column grid + bottom-sheet popup by default,
      3-column grid + centred popup from 750px up. */
@@ -39,16 +28,15 @@
 
   /* ---------- "+" hotspot ---------- */
   .stl__hotspot {
-    position: absolute; left: var(--x, 50%); top: var(--y, 50%);
+    position: absolute; z-index: 2; left: var(--x, 50%); top: var(--y, 50%);
     transform: translate(-50%, -50%);
-    width: 28px; height: 28px; border: 0; border-radius: 50%;
+    width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%;
     background: rgba(255, 255, 255, 0.92); color: var(--stl-ink);
-    cursor: pointer; transition: transform 0.2s ease;
-    z-index: 2; /* always above the image */
+    cursor: pointer; transition: transform 0.2s ease; touch-action: manipulation;
   }
-  /* Plus sign drawn with gradients (no extra markup / icon font). */
+  /* Plus sign drawn with gradients (no extra markup or icon font). */
   .stl__hotspot::before {
-    content: ''; position: absolute; inset: 8px;
+    content: ''; position: absolute; inset: 8px; pointer-events: none;
     background:
       linear-gradient(currentColor, currentColor) center / 100% 1.5px no-repeat,
       linear-gradient(currentColor, currentColor) center / 1.5px 100% no-repeat;
@@ -59,21 +47,13 @@
   .stl__hotspot:focus-visible { transform: translate(-50%, -50%) scale(1.15); }
   .stl__hotspot:focus-visible { outline: 2px solid var(--stl-ink); outline-offset: 2px; }
 
-  /* ---------- Popup: dark overlay + white card (as in the reference) ---------- */
-  /* The overlay is moved to <body> by JS, so it defines its own variables. */
-  .stl-overlay {
-    --stl-ink: #000; --stl-paper: #fff; --stl-line: #1a1a1a;
-    position: fixed; inset: 0; z-index: 99999;
-    display: none; align-items: flex-end; justify-content: center; /* mobile: bottom sheet */
-    background: rgba(0, 0, 0, 0.55);
-  }
-  .stl-overlay.is-open { display: flex; }
+  /* ---------- Popup (native <dialog>) ---------- */
   .stl-modal {
-    position: relative; width: 100%; max-height: 90vh;
-    padding: 1.5rem 1.25rem 1.25rem; box-sizing: border-box;
-    background: var(--stl-paper); color: var(--stl-ink); overflow-y: auto;
-    outline: none;
+    width: 100%; max-width: none; max-height: 90vh; /* mobile: bottom sheet */
+    margin: auto 0 0; padding: 1.5rem 1.25rem 1.25rem;
+    border: 0; background: var(--stl-paper); color: var(--stl-ink); overflow-y: auto;
   }
+  .stl-modal::backdrop { background: rgba(0, 0, 0, 0.55); }
   .stl-modal__close {
     position: absolute; top: 0.75rem; right: 0.75rem; width: 36px; height: 36px;
     display: grid; place-items: center; border: 0; background: none; color: inherit; cursor: pointer;
@@ -123,13 +103,12 @@
   @media (min-width: 750px) {
     .stl { padding: 3rem 2rem; }
     .stl__grid { grid-template-columns: repeat(3, 1fr); }
-    .stl-overlay { align-items: center; }
-    .stl-modal { width: 440px; max-width: calc(100vw - 2rem); padding: 2rem; }
+    .stl-modal { width: 440px; max-width: calc(100vw - 2rem); margin: auto; padding: 2rem; }
     .stl-modal__image { width: 120px; height: 140px; }
   }
   @media (prefers-reduced-motion: reduce) { .stl__hotspot { transition: none; } }
 </style>
-
+{% endraw %}
 
 {% comment %} ============================== MARKUP ============================== {% endcomment %}
 <section
@@ -161,6 +140,7 @@
         {%- assign product = block.settings.product -%}
         {%- comment %} Fall back to the product's own photo if no image was chosen. {% endcomment -%}
         {%- assign image = block.settings.image | default: product.featured_image -%}
+        {%- assign alt = image.alt | default: product.title | escape -%}
 
         <div class="stl__item" {{ block.shopify_attributes }}>
           {%- if image != blank -%}
@@ -171,8 +151,8 @@
                 loading: 'lazy',
                 class: 'stl__image',
                 widths: '300, 450, 600, 800',
-                sizes: '(min-width: 990px) 33vw, 50vw',
-                alt: image.alt | default: product.title
+                sizes: '(min-width: 750px) 33vw, 50vw',
+                alt: alt
             }}
           {%- else -%}
             <div class="stl__image stl__image--placeholder">{{ 'image' | placeholder_svg_tag }}</div>
@@ -197,14 +177,13 @@
   </div>
 
   {%- comment %} One shared popup per section; JS fills it for the chosen product. {% endcomment %}
-  <div class="stl-overlay" data-overlay>
-  <div class="stl-modal" data-modal role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="stl-title-{{ section.id }}">
+  <dialog class="stl-modal" data-modal aria-labelledby="stl-title-{{ section.id }}">
     <button type="button" class="stl-modal__close" data-close aria-label="Close">
       <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
     </button>
 
     <div class="stl-modal__summary">
-      <img class="stl-modal__image" data-image alt="" width="120" height="140">
+      <img class="stl-modal__image" data-image alt="" width="120" height="140" hidden>
       <div class="stl-modal__info">
         <h3 class="stl-modal__title" id="stl-title-{{ section.id }}" data-title></h3>
         <p class="stl-modal__price" data-price></p>
@@ -220,50 +199,62 @@
       <span data-add-label>Add to cart</span>
       <svg viewBox="0 0 36 10" width="36" height="10" aria-hidden="true"><path d="M0 5h34M30 1l4 4-4 4" stroke="currentColor" stroke-width="1" fill="none"/></svg>
     </button>
-  </div>
-  </div>
+  </dialog>
 </section>
 
 {% comment %} ============================== SCRIPT ============================== {% endcomment %}
-
+{% raw %}
 <script>
 /**
- * Vanilla JS (no jQuery) controller for the "Shop the look" section.
+ * "Shop the look" controller (vanilla JS).
  *
- * Flow
- *   1. On init, product JSON embedded by Liquid is parsed into a Map.
- *   2. Clicking a hotspot opens the shared <dialog> and renders that product:
- *      title, price, description and one control per variant option.
- *   3. "Add to cart" POSTs to /cart/add.js. If the chosen variant is
- *      Black + Medium, the bonus product is added in the SAME request.
+ *  1. Product JSON embedded by Liquid is parsed once per section.
+ *  2. Clicking a hotspot opens the shared <dialog> for that product.
+ *  3. "Add to cart" POSTs to /cart/add.js. If the chosen variant matches the
+ *     bonus trigger (e.g. Black + Medium), the bonus product is added in the
+ *     same request, so both items are added together or neither is.
  */
 (() => {
   'use strict';
 
+  const SELECTOR = '[data-shop-the-look]';
+
   /* ------------------------------ Helpers ------------------------------ */
 
-  /** Create an element with props/attributes and children in one call. */
-  const h = (tag, props = {}, ...children) => {
+  /** Create an element with attributes and children in one call. */
+  const h = (tag, attrs = {}, ...children) => {
     const node = document.createElement(tag);
-    Object.entries(props).forEach(([key, value]) => {
-      if (key === 'className') node.className = value;
-      else if (key === 'text') node.textContent = value;
+    for (const [key, value] of Object.entries(attrs)) {
+      if (key === 'text') node.textContent = value;
+      else if (key === 'className') node.className = value;
       else node.setAttribute(key, value);
-    });
+    }
     node.append(...children);
     return node;
   };
 
-  /** Strip HTML safely (DOMParser never executes scripts). */
+  /** Plain text from an HTML string (DOMParser never runs scripts). */
   const stripHtml = (html = '') =>
     new DOMParser().parseFromString(html, 'text/html').body.textContent.trim();
 
-  /** Ask Shopify's CDN for a smaller image instead of the full-size file. */
+  /** Ask the Shopify CDN for a smaller image. */
   const resizeImage = (src, width) => {
-    if (!src) return '';
-    const url = new URL(src, window.location.href);
-    url.searchParams.set('width', width);
-    return url.toString();
+    try {
+      const url = new URL(src, window.location.href);
+      url.searchParams.set('width', width);
+      return url.toString();
+    } catch {
+      return src;
+    }
+  };
+
+  /** Falls back to USD/en if the currency or locale is missing or invalid. */
+  const makeMoney = (locale, currency) => {
+    try {
+      return new Intl.NumberFormat(locale, { style: 'currency', currency });
+    } catch {
+      return new Intl.NumberFormat('en', { style: 'currency', currency: 'USD' });
+    }
   };
 
   /** Colour-like options are shown as buttons, everything else as a <select>. */
@@ -274,15 +265,8 @@
   class ShopTheLook {
     constructor(root) {
       this.root = root;
-      this.overlay = root.querySelector('[data-overlay]');
-      this.modal = this.overlay.querySelector('[data-modal]');
-
-      // Re-parent the overlay to <body> so no theme wrapper (transform,
-      // overflow, z-index) can clip or hide it. Remove a stale copy left
-      // behind when the theme editor re-renders this section.
-      document.querySelectorAll(`[data-stl-owner="${root.id}"]`).forEach((el) => el.remove());
-      this.overlay.dataset.stlOwner = root.id;
-      document.body.append(this.overlay);
+      this.modal = root.querySelector('[data-modal]');
+      if (!this.modal) throw new Error('Popup <dialog> not found');
 
       this.dom = {
         image: this.modal.querySelector('[data-image]'),
@@ -297,48 +281,62 @@
 
       const d = root.dataset;
       this.config = {
-        currency: d.currency,
-        locale: d.locale,
-        addUrl: d.cartAddUrl,
-        cartUrl: d.cartUrl,
+        addUrl: d.cartAddUrl || '/cart/add.js',
+        cartUrl: d.cartUrl || '/cart.js',
         labels: {
-          add: d.labelAdd, adding: d.labelAdding, added: d.labelAdded,
-          soldOut: d.labelSoldOut, choose: d.labelChoose,
+          add: d.labelAdd || 'Add to cart',
+          adding: d.labelAdding || 'Adding…',
+          added: d.labelAdded || 'Added ✓',
+          soldOut: d.labelSoldOut || 'Sold out',
+          choose: d.labelChoose || 'Choose your',
         },
-        // Bonus product is optional: only present when configured & in stock.
+        // Bonus is optional: it only exists when configured and in stock.
         bonus: d.bonusVariantId
           ? {
-              productId: Number(d.bonusProductId),
+              productId: String(d.bonusProductId),
               variantId: Number(d.bonusVariantId),
-              trigger: d.bonusTrigger.split('|'), // e.g. ["black", "medium"]
+              trigger: (d.bonusTrigger || '')
+                .split('|')
+                .map((s) => s.trim().toLowerCase())
+                .filter(Boolean),
             }
           : null,
       };
 
-      this.money = new Intl.NumberFormat(this.config.locale, {
-        style: 'currency', currency: this.config.currency,
-      });
-
+      this.money = makeMoney(d.locale || 'en', d.currency || 'USD');
       this.products = this.parseProducts();
-      this.state = { product: null, selected: [], variant: null, trigger: null };
+      this.state = this.emptyState();
+      this.busy = false;
 
       this.bindEvents();
     }
 
-    /** Read every embedded <script type="application/json"> once. */
+    emptyState() {
+      return {
+        product: null,
+        trigger: null,
+        hasVariants: false,
+        names: [],
+        selected: [],
+        variant: null,
+      };
+    }
+
+    /** Read every embedded product JSON block once. */
     parseProducts() {
       const map = new Map();
       this.root.querySelectorAll('[data-product-json]').forEach((script) => {
         try {
           const product = JSON.parse(script.textContent);
           map.set(String(product.id), product);
-        } catch (e) {
-          console.warn('[shop-the-look] Invalid product JSON', e);
+        } catch (err) {
+          console.warn('[shop-the-look] Invalid product JSON', err);
         }
       });
       return map;
     }
 
+    /** Shopify prices are in cents. */
     formatPrice(cents) {
       return this.money.format(cents / 100);
     }
@@ -346,26 +344,33 @@
     /* ------------------------------ Events ------------------------------ */
 
     bindEvents() {
-      // Event delegation: one listener for all hotspots.
+      // One listener for all hotspots (event delegation).
       this.root.addEventListener('click', (event) => {
         const hotspot = event.target.closest('.stl__hotspot');
-        if (hotspot) this.open(hotspot.dataset.productId, hotspot);
+        if (hotspot && this.root.contains(hotspot)) this.open(hotspot);
       });
 
-      // Close: the X button or a click on the dark backdrop (not the card).
-      this.overlay.addEventListener('click', (event) => {
-        if (event.target === this.overlay || event.target.closest('[data-close]')) this.close();
-      });
-      // Close: Escape key.
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && this.isOpen) this.close();
+      this.modal.addEventListener('click', (event) => {
+        if (event.target.closest('[data-close]')) {
+          this.close();
+          return;
+        }
+        // Clicks on the backdrop land on the <dialog> outside its box.
+        const r = this.modal.getBoundingClientRect();
+        const outside =
+          event.clientX < r.left || event.clientX > r.right ||
+          event.clientY < r.top || event.clientY > r.bottom;
+        if (outside) this.close();
       });
 
-      // Variant selection (delegated, covers buttons and selects).
+      // Fires for every close path: button, backdrop, Esc.
+      this.modal.addEventListener('close', () => this.onClosed());
+
       this.dom.options.addEventListener('click', (event) => {
         const btn = event.target.closest('.stl-modal__segment');
         if (btn) this.select(Number(btn.dataset.index), btn.dataset.value);
       });
+
       this.dom.options.addEventListener('change', (event) => {
         const select = event.target.closest('.stl-modal__select');
         if (select) this.select(Number(select.dataset.index), select.value);
@@ -376,49 +381,39 @@
 
     /* ------------------------- Open / close popup ------------------------ */
 
-    open(productId, trigger) {
-      const product = this.products.get(String(productId));
-      if (!product) return;
+    open(trigger) {
+      const product = this.products.get(String(trigger.dataset.productId));
+      if (!product) {
+        console.warn('[shop-the-look] No product data for id', trigger.dataset.productId);
+        return;
+      }
 
-      // Products without real options only have a single "Default Title" variant.
-      const hasVariants = !(product.variants.length === 1 && product.options[0] === 'Title');
-      const names = hasVariants ? product.options.map((o) => o.name ?? o) : [];
+      const rawNames = (product.options || []).map((o) => (typeof o === 'string' ? o : o.name));
+      // A product with only the default "Title" option has no real variants.
+      const hasVariants = !(rawNames.length === 1 && rawNames[0] === 'Title');
+
       this.state = {
         product,
         trigger,
         hasVariants,
-        names,
-        // One slot per option ('' = not chosen yet). Avoids sparse arrays,
-        // which would make Array.every() silently skip unselected options.
-        selected: names.map(() => ''),
+        names: hasVariants ? rawNames : [],
+        selected: [],
         variant: hasVariants ? null : product.variants[0],
       };
+      this.busy = false;
 
-      // Open the popup FIRST so a rendering problem can never block it.
-      this.showDialog();
-      try {
-        this.render();
-      } catch (error) {
-        console.error('[shop-the-look] Could not render product', error);
-      }
-    }
-
-    get isOpen() {
-      return this.overlay.classList.contains('is-open');
-    }
-
-    /** Show the overlay, lock page scroll and move focus into the popup. */
-    showDialog() {
-      this.overlay.classList.add('is-open');
+      this.render();
+      this.modal.showModal();
       document.documentElement.classList.add('stl-scroll-lock');
-      this.modal.focus();
     }
 
-    /** Hide the overlay and give focus back to the "+" that opened it. */
     close() {
-      this.overlay.classList.remove('is-open');
+      if (this.modal.open) this.modal.close();
+    }
+
+    onClosed() {
       document.documentElement.classList.remove('stl-scroll-lock');
-      this.state.trigger?.focus();
+      this.state.trigger?.focus(); // return focus to the hotspot
     }
 
     /* ------------------------------ Rendering ---------------------------- */
@@ -431,7 +426,7 @@
       this.refresh();
     }
 
-    /** Build one control per product option, straight from product data. */
+    /** One control per product option, built from product data. */
     renderOptions() {
       const { names, hasVariants } = this.state;
       this.dom.options.replaceChildren();
@@ -439,56 +434,88 @@
 
       names.forEach((name, index) => {
         const values = this.optionValues(index);
-        const id = `${this.root.id}-opt-${index}`;
-        const group = h('div', { className: 'stl-modal__group' },
-          h('label', { className: 'stl-modal__label', for: id, id: `${id}-label`, text: name }));
+        const labelId = `${this.root.id}-opt-${index}-label`;
+        const selectId = `${this.root.id}-opt-${index}`;
 
         if (isSwatchOption(name)) {
-          // Pre-select the first colour so the popup opens in a valid state.
-          this.state.selected[index] = values[0];
-          const wrap = h('div', { className: 'stl-modal__segments', role: 'radiogroup', 'aria-labelledby': `${id}-label` },
-            ...values.map((value) => h('button', {
-              type: 'button', className: 'stl-modal__segment', role: 'radio',
-              'data-index': index, 'data-value': value, text: value,
-            })));
-          group.append(wrap);
+          // Pre-select the first in-stock colour so the popup opens in a useful state.
+          this.state.selected[index] =
+            values.find((v) => this.isAvailable(index, v)) ?? values[0];
+
+          this.dom.options.append(
+            h('div', { className: 'stl-modal__group' },
+              h('span', { className: 'stl-modal__label', id: labelId, text: name }),
+              h('div', { className: 'stl-modal__segments', role: 'radiogroup', 'aria-labelledby': labelId },
+                ...values.map((value) => h('button', {
+                  type: 'button',
+                  className: 'stl-modal__segment',
+                  role: 'radio',
+                  'data-index': index,
+                  'data-value': value,
+                  text: value,
+                }))
+              )
+            )
+          );
         } else {
-          const select = h('select', { className: 'stl-modal__select', id, 'data-index': index },
-            h('option', { value: '', disabled: '', selected: '', text: `${this.config.labels.choose} ${name.toLowerCase()}` }),
-            ...values.map((value) => h('option', { value, text: value, 'data-option-value': value })));
-          group.append(select);
+          const placeholder = h('option', {
+            value: '',
+            text: `${this.config.labels.choose} ${name.toLowerCase()}`,
+          });
+          placeholder.disabled = true;
+          placeholder.selected = true;
+
+          const select = h('select', {
+            className: 'stl-modal__select',
+            id: selectId,
+            'data-index': index,
+          },
+            placeholder,
+            ...values.map((value) => h('option', {
+              value,
+              text: value,
+              'data-option-value': value,
+            }))
+          );
+
+          this.dom.options.append(
+            h('div', { className: 'stl-modal__group' },
+              h('label', { className: 'stl-modal__label', for: selectId, text: name }),
+              select
+            )
+          );
         }
-        this.dom.options.append(group);
       });
     }
 
-    /** Unique values for option N, in variant order (e.g. ["S","M","L"]). */
+    /** Unique values for option N, in variant order. */
     optionValues(index) {
       const key = `option${index + 1}`;
-      return [...new Set(this.state.product.variants.map((v) => v[key]))];
+      const values = this.state.product.variants.map((v) => v[key]).filter(Boolean);
+      return [...new Set(values)];
     }
 
     /** Re-sync everything that depends on the current selection. */
     refresh() {
-      const { product, hasVariants, selected } = this.state;
+      const { product, hasVariants, names, selected } = this.state;
 
-      // Resolve the variant once all options are chosen.
       if (hasVariants) {
-        const complete = selected.length === product.options.length && selected.every(Boolean);
+        const complete = names.every((_, i) => selected[i]);
         this.state.variant = complete ? this.findVariant(selected) : null;
       }
+
       const { variant } = this.state;
+      const shown = variant ?? this.defaultVariant();
 
-      this.renderPrice(variant ?? this.defaultVariant());
-      this.dom.image.src = resizeImage(variant?.featured_image?.src || product.featured_image, 240);
-      this.dom.image.alt = product.title;
-
+      this.renderPrice(shown);
+      this.renderImage(shown.featured_image?.src || product.featured_image);
       this.syncControls();
-      this.setError('');
 
       const soldOut = Boolean(variant) && !variant.available;
-      this.dom.add.disabled = soldOut;
-      this.dom.addLabel.textContent = soldOut ? this.config.labels.soldOut : this.config.labels.add;
+      this.setButton(
+        soldOut ? this.config.labels.soldOut : this.config.labels.add,
+        soldOut || this.busy
+      );
     }
 
     defaultVariant() {
@@ -503,132 +530,173 @@
       }
     }
 
-    /** Update checked state + sold-out hints without rebuilding the DOM. */
+    renderImage(src) {
+      this.dom.image.alt = this.state.product.title;
+      if (src) {
+        this.dom.image.src = resizeImage(src, 240);
+        this.dom.image.hidden = false;
+      } else {
+        this.dom.image.removeAttribute('src');
+        this.dom.image.hidden = true;
+      }
+    }
+
+    /** Update checked state and sold-out hints without rebuilding the DOM. */
     syncControls() {
       this.dom.options.querySelectorAll('.stl-modal__segment').forEach((btn) => {
         const index = Number(btn.dataset.index);
-        btn.setAttribute('aria-checked', String(this.state.selected[index] === btn.dataset.value));
-        btn.classList.toggle('is-unavailable', !this.isAvailable(index, btn.dataset.value));
+        const value = btn.dataset.value;
+        btn.setAttribute('aria-checked', String(this.state.selected[index] === value));
+        btn.classList.toggle('is-unavailable', !this.isAvailable(index, value));
       });
-      this.dom.options.querySelectorAll('.stl-modal__select option[data-option-value]').forEach((opt) => {
+
+      this.dom.options.querySelectorAll('option[data-option-value]').forEach((opt) => {
         const index = Number(opt.parentElement.dataset.index);
         const value = opt.dataset.optionValue;
         opt.textContent = this.isAvailable(index, value)
-          ? value : `${value} – ${this.config.labels.soldOut}`;
+          ? value
+          : `${value} – ${this.config.labels.soldOut}`;
       });
+    }
+
+    setButton(label, disabled) {
+      this.dom.addLabel.textContent = label;
+      this.dom.add.disabled = disabled;
+    }
+
+    setError(message = '') {
+      this.dom.error.textContent = message;
+      this.dom.error.hidden = !message;
     }
 
     /* ---------------------------- Variant logic -------------------------- */
 
     select(index, value) {
+      if (this.busy) return;
       this.state.selected[index] = value;
+      this.setError('');
       this.refresh();
     }
 
-    /** Variant whose option1..3 all equal the selected values. */
+    /** The variant whose options match every selected value. */
     findVariant(selected) {
-      return this.state.product.variants.find((v) =>
-        selected.every((value, i) => v[`option${i + 1}`] === value)) ?? null;
+      const { product, names } = this.state;
+      return product.variants.find((v) =>
+        names.every((_, i) => v[`option${i + 1}`] === selected[i])
+      ) ?? null;
     }
 
-    /** Is there an in-stock variant with this value (given the other picks)? */
+    /** Is there an in-stock variant with this value, given the other picks? */
     isAvailable(index, value) {
-      const { product, selected } = this.state;
+      const { product, names, selected } = this.state;
       return product.variants.some((v) =>
         v.available &&
         v[`option${index + 1}`] === value &&
-        selected.every((picked, i) => i === index || !picked || v[`option${i + 1}`] === picked));
+        names.every((_, i) =>
+          i === index || !selected[i] || v[`option${i + 1}`] === selected[i])
+      );
+    }
+
+    /** True when the variant matches every bonus trigger (e.g. black + medium). */
+    qualifiesForBonus(variant) {
+      const { bonus } = this.config;
+      if (!bonus || String(this.state.product.id) === bonus.productId) return false;
+      const values = [variant.option1, variant.option2, variant.option3]
+        .filter(Boolean)
+        .map((v) => v.toLowerCase());
+      return bonus.trigger.length > 0 &&
+        bonus.trigger.every((needle) => values.includes(needle));
     }
 
     /* ----------------------------- Add to cart --------------------------- */
 
-    /** True when the variant is Black + Medium (values come from section settings). */
-    qualifiesForBonus(variant) {
-      const { bonus } = this.config;
-      if (!bonus || this.state.product.id === bonus.productId || variant.id === bonus.variantId) return false;
-      const values = [variant.option1, variant.option2, variant.option3]
-        .filter(Boolean).map((v) => v.toLowerCase());
-      return bonus.trigger.every((needle) => values.includes(needle));
-    }
-
     async addToCart() {
-      const { variant, names } = this.state;
+      if (this.busy) return;
+      const { variant, names, selected } = this.state;
 
-      // Variant not fully chosen yet -> tell the shopper which option is missing.
       if (!variant) {
-        const missing = names.find((_, i) => !this.state.selected[i]);
-        this.setError(`${this.config.labels.choose} ${missing?.toLowerCase() ?? 'option'}`);
+        const missing = names.find((_, i) => !selected[i]) ?? 'option';
+        this.setError(`${this.config.labels.choose} ${missing.toLowerCase()}`);
         return;
       }
 
-      // One request = atomic: either both items are added or neither.
       const items = [{ id: variant.id, quantity: 1 }];
       if (this.qualifiesForBonus(variant)) {
         items.push({ id: this.config.bonus.variantId, quantity: 1 });
       }
 
-      this.setBusy(true);
+      this.busy = true;
+      this.setError('');
+      this.setButton(this.config.labels.adding, true);
+
       try {
         const response = await fetch(this.config.addUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body: JSON.stringify({ items }),
         });
+
+        const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          const err = await response.json().catch(() => ({}));
-          throw new Error(err.description || err.message || 'Could not add to cart.');
+          throw new Error(data.description || data.message || 'Could not add to cart.');
         }
 
-        await this.notifyCartUpdated();
-        this.dom.addLabel.textContent = this.config.labels.added;
-        setTimeout(() => this.isOpen && this.close(), 900);
-      } catch (error) {
-        this.setError(error.message);
-        this.setBusy(false);
+        this.busy = false;
+        this.setButton(this.config.labels.added, true);
+        this.notifyCartUpdated().catch((err) =>
+          console.warn('[shop-the-look] Could not refresh cart', err));
+        setTimeout(() => this.close(), 900);
+      } catch (err) {
+        this.busy = false;
+        this.setError(err.message);
+        this.refresh(); // restores the button label and state
       }
     }
 
-    /** Fetch the fresh cart and tell the rest of the theme about it. */
+    /** Refresh cart counters and tell the rest of the theme. */
     async notifyCartUpdated() {
-      const cart = await (await fetch(this.config.cartUrl)).json();
-      document.querySelectorAll('[data-cart-count], .cart-count-bubble span[aria-hidden]')
+      const response = await fetch(this.config.cartUrl, { headers: { Accept: 'application/json' } });
+      const cart = await response.json();
+
+      document
+        .querySelectorAll('[data-cart-count], .cart-count-bubble span[aria-hidden]')
         .forEach((el) => { el.textContent = cart.item_count; });
+
       document.dispatchEvent(new CustomEvent('shop-the-look:cart-updated', { detail: { cart } }));
-    }
-
-    setBusy(isBusy) {
-      this.dom.add.disabled = isBusy;
-      this.dom.addLabel.textContent = isBusy ? this.config.labels.adding : this.config.labels.add;
-    }
-
-    setError(message) {
-      this.dom.error.textContent = message;
-      this.dom.error.hidden = !message;
     }
   }
 
   /* ------------------------------ Bootstrap ------------------------------ */
 
-  /** Initialise every section in scope (idempotent). */
-  const init = (scope = document) =>
-  scope.querySelectorAll('[data-shop-the-look]').forEach((el) => {
+  /** Initialise every section in scope. Safe to call repeatedly. */
+  const init = (scope = document) => {
+    const nodes = [];
+    if (scope instanceof Element && scope.matches(SELECTOR)) nodes.push(scope);
+    nodes.push(...scope.querySelectorAll(SELECTOR));
+
+    nodes.forEach((el) => {
       if (el.__stl) return; // already initialised
       try {
         el.__stl = new ShopTheLook(el);
-      } catch (error) {
-        console.error('[shop-the-look] Init failed', error);
+      } catch (err) {
+        console.error('[shop-the-look] init failed:', err);
       }
     });
+  };
 
-  // Run now if the DOM is parsed, otherwise wait for it.
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => init());
-  else init();
+  init();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => init());
+  }
 
-  // Theme editor re-renders the section on every setting change.
-  document.addEventListener('shopify:section:load', (e) => init(e.target));
+  // Theme editor: re-initialise sections after they are re-rendered.
+  if (!window.__stlSectionListener) {
+    window.__stlSectionListener = true;
+    document.addEventListener('shopify:section:load', (event) => init(event.target));
+  }
 })();
 </script>
-
+{% endraw %}
 
 {% schema %}
 {
