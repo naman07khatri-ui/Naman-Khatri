@@ -28,7 +28,7 @@
         "bg_color": "#ffffff",
         "overlay_color": "#ffffff",
         "overlay_opacity": 0,
-        "banner_height": 560,
+        "banner_height": 710,
         "banner_height_mobile": 460,
         "content_width": 560,
         "horizontal_align": "flex-start",
@@ -52,79 +52,9 @@
         "strip_bg": "#f3f3f3",
         "strip_text_color": "#000000"
       }
-    },
-    "look_grid_section_M4BXqR": {
-      "type": "look-grid-section",
-      "blocks": {
-        "look_yxYGbP": {
-          "type": "look",
-          "settings": {
-            "image": "shopify://shop_images/man-adjusts-blue-tuxedo-bowtie_925x_55a49e12-d54b-488e-b7a0-ea4c201eb01f.jpg",
-            "product": "chequered-red-shirt",
-            "hotspot_x": 71,
-            "hotspot_y": 51
-          }
-        },
-        "look_txwEhA": {
-          "type": "look",
-          "settings": {
-            "product": "",
-            "hotspot_x": 50,
-            "hotspot_y": 50
-          }
-        },
-        "look_y7D3YJ": {
-          "type": "look",
-          "settings": {
-            "product": "",
-            "hotspot_x": 50,
-            "hotspot_y": 50
-          }
-        },
-        "look_AmgFd7": {
-          "type": "look",
-          "settings": {
-            "product": "",
-            "hotspot_x": 50,
-            "hotspot_y": 50
-          }
-        },
-        "look_fRDtYA": {
-          "type": "look",
-          "settings": {
-            "product": "",
-            "hotspot_x": 50,
-            "hotspot_y": 50
-          }
-        },
-        "look_G6XQay": {
-          "type": "look",
-          "settings": {
-            "product": "",
-            "hotspot_x": 50,
-            "hotspot_y": 50
-          }
-        }
-      },
-      "block_order": [
-        "look_yxYGbP",
-        "look_txwEhA",
-        "look_y7D3YJ",
-        "look_AmgFd7",
-        "look_fRDtYA",
-        "look_G6XQay"
-      ],
-      "name": "Shop the look",
-      "settings": {
-        "heading": "Tisso vison in the wild",
-        "bundle_product": "",
-        "bundle_color": "Black",
-        "bundle_size": "Medium"
-      }
     }
   },
   "order": [
-    "custom_banner_mmq6Vc",
-    "look_grid_section_M4BXqR"
+    "custom_banner_mmq6Vc"
   ]
 }
