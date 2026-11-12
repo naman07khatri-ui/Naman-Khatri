@@ -1,3 +1,15 @@
+{%- comment -%}
+  sections/shop-the-look.liquid  (SINGLE FILE: markup + CSS + JS + schema)
+  --------------------------------------------------------------------------
+  Shoppable image grid. Each block = one tile = one product (picked in the
+  theme customizer). Clicking the "+" hotspot opens a quick-buy popup whose
+  content (title, price, description, variants) is rendered by JS from the
+  product JSON embedded below. No product data is hard-coded anywhere.
+
+  Add to cart posts to /cart/add.js. For Black + Medium variants the bonus
+  product (Soft Winter Jacket) is added in the same request.
+{%- endcomment -%}
+
 {%- liquid
   # Optional "bonus" product auto-added with certain variants. Only wired up
   # when it exists and is purchasable, so the cart request can't fail on it.
@@ -33,6 +45,7 @@
     width: 28px; height: 28px; border: 0; border-radius: 50%;
     background: rgba(255, 255, 255, 0.92); color: var(--stl-ink);
     cursor: pointer; transition: transform 0.2s ease;
+    z-index: 2; /* always above the image */
   }
   /* Plus sign drawn with gradients (no extra markup / icon font). */
   .stl__hotspot::before {
@@ -218,10 +231,6 @@
 (() => {
   'use strict';
 
-  // Several sections may be on one page, but the script must only run once.
-  if (window.__stlLoaded) return;
-  window.__stlLoaded = true;
-
   /* ------------------------------ Helpers ------------------------------ */
 
   /** Create an element with props/attributes and children in one call. */
@@ -326,8 +335,14 @@
       });
 
       this.modal.addEventListener('click', (event) => {
-        // Click on the backdrop (the <dialog> itself) or the close button.
-        if (event.target === this.modal || event.target.closest('[data-close]')) this.close();
+        // Close button, or a click outside the popup box (on the backdrop).
+        // Clicks on the dialog's own padding must NOT close it, so compare
+        // the pointer position with the dialog's rectangle.
+        const box = this.modal.getBoundingClientRect();
+        const outside = event.target === this.modal && (
+          event.clientX < box.left || event.clientX > box.right ||
+          event.clientY < box.top || event.clientY > box.bottom);
+        if (outside || event.target.closest('[data-close]')) this.close();
       });
       this.modal.addEventListener('close', () => this.onClosed());
 
@@ -352,22 +367,44 @@
 
       // Products without real options only have a single "Default Title" variant.
       const hasVariants = !(product.variants.length === 1 && product.options[0] === 'Title');
+      const names = hasVariants ? product.options.map((o) => o.name ?? o) : [];
       this.state = {
         product,
         trigger,
         hasVariants,
-        names: hasVariants ? product.options.map((o) => o.name ?? o) : [],
-        selected: [],
+        names,
+        // One slot per option ('' = not chosen yet). Avoids sparse arrays,
+        // which would make Array.every() silently skip unselected options.
+        selected: names.map(() => ''),
         variant: hasVariants ? null : product.variants[0],
       };
 
-      this.render();
-      this.modal.showModal(); // native focus trap + Esc handling
+      // Open the popup FIRST so a rendering problem can never block it.
+      this.showDialog();
+      try {
+        this.render();
+      } catch (error) {
+        console.error('[shop-the-look] Could not render product', error);
+      }
+    }
+
+    /** Native modal when supported (focus trap + Esc); plain [open] otherwise. */
+    showDialog() {
+      try {
+        if (typeof this.modal.showModal === 'function') this.modal.showModal();
+        else this.modal.setAttribute('open', '');
+      } catch (error) {
+        this.modal.setAttribute('open', ''); // already open / not connected
+      }
       document.documentElement.classList.add('stl-scroll-lock');
     }
 
     close() {
-      this.modal.close();
+      if (typeof this.modal.close === 'function') this.modal.close();
+      else {
+        this.modal.removeAttribute('open');
+        this.onClosed();
+      }
     }
 
     /** Runs for every close path (button, backdrop, Esc). */
@@ -567,10 +604,18 @@
   /** Initialise every section in scope (idempotent). */
   const init = (scope = document) =>
     scope.querySelectorAll('[data-shop-the-look]').forEach((el) => {
-      if (!el.__stl) el.__stl = new ShopTheLook(el);
+      if (el.__stl) return; // already initialised
+      try {
+        el.__stl = new ShopTheLook(el);
+      } catch (error) {
+        console.error('[shop-the-look] Init failed', error);
+      }
     });
 
-  init();
+  // Run now if the DOM is parsed, otherwise wait for it.
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => init());
+  else init();
+
   // Theme editor re-renders the section on every setting change.
   document.addEventListener('shopify:section:load', (e) => init(e.target));
 })();
