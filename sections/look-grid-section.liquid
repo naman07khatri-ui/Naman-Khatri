@@ -60,14 +60,21 @@
   .stl__hotspot:focus-visible { transform: translate(-50%, -50%) scale(1.15); }
   .stl__hotspot:focus-visible { outline: 2px solid var(--stl-ink); outline-offset: 2px; }
 
-  /* ---------- Popup (native <dialog>) ---------- */
-  .stl-modal {
-    width: 100%; max-width: none; max-height: 90vh; /* mobile: bottom sheet */
-    margin: auto 0 0; padding: 1.5rem 1.25rem 1.25rem;
-    border: 0; background: var(--stl-paper); color: var(--stl-ink); overflow-y: auto;
+  /* ---------- Popup: dark overlay + white card (as in the reference) ---------- */
+  /* The overlay is moved to <body> by JS, so it defines its own variables. */
+  .stl-overlay {
+    --stl-ink: #000; --stl-paper: #fff; --stl-line: #1a1a1a;
+    position: fixed; inset: 0; z-index: 99999;
+    display: none; align-items: flex-end; justify-content: center; /* mobile: bottom sheet */
+    background: rgba(0, 0, 0, 0.55);
   }
-  .stl-modal::backdrop { background: rgba(0, 0, 0, 0.55); }
-  .stl-modal[open] { display: block; }
+  .stl-overlay.is-open { display: flex; }
+  .stl-modal {
+    position: relative; width: 100%; max-height: 90vh;
+    padding: 1.5rem 1.25rem 1.25rem; box-sizing: border-box;
+    background: var(--stl-paper); color: var(--stl-ink); overflow-y: auto;
+    outline: none;
+  }
   .stl-modal__close {
     position: absolute; top: 0.75rem; right: 0.75rem; width: 36px; height: 36px;
     display: grid; place-items: center; border: 0; background: none; color: inherit; cursor: pointer;
@@ -117,7 +124,8 @@
   @media (min-width: 750px) {
     .stl { padding: 3rem 2rem; }
     .stl__grid { grid-template-columns: repeat(3, 1fr); }
-    .stl-modal { width: 440px; max-width: calc(100vw - 2rem); margin: auto; padding: 2rem; }
+    .stl-overlay { align-items: center; }
+    .stl-modal { width: 440px; max-width: calc(100vw - 2rem); padding: 2rem; }
     .stl-modal__image { width: 120px; height: 140px; }
   }
   @media (prefers-reduced-motion: reduce) { .stl__hotspot { transition: none; } }
@@ -190,7 +198,8 @@
   </div>
 
   {%- comment %} One shared popup per section; JS fills it for the chosen product. {% endcomment %}
-  <dialog class="stl-modal" data-modal aria-labelledby="stl-title-{{ section.id }}">
+  <div class="stl-overlay" data-overlay>
+  <div class="stl-modal" data-modal role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="stl-title-{{ section.id }}">
     <button type="button" class="stl-modal__close" data-close aria-label="Close">
       <svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
     </button>
@@ -212,7 +221,8 @@
       <span data-add-label>Add to cart</span>
       <svg viewBox="0 0 36 10" width="36" height="10" aria-hidden="true"><path d="M0 5h34M30 1l4 4-4 4" stroke="currentColor" stroke-width="1" fill="none"/></svg>
     </button>
-  </dialog>
+  </div>
+  </div>
 </section>
 
 {% comment %} ============================== SCRIPT ============================== {% endcomment %}
@@ -265,7 +275,16 @@
   class ShopTheLook {
     constructor(root) {
       this.root = root;
-      this.modal = root.querySelector('[data-modal]');
+      this.overlay = root.querySelector('[data-overlay]');
+      this.modal = this.overlay.querySelector('[data-modal]');
+
+      // Re-parent the overlay to <body> so no theme wrapper (transform,
+      // overflow, z-index) can clip or hide it. Remove a stale copy left
+      // behind when the theme editor re-renders this section.
+      document.querySelectorAll(`[data-stl-owner="${root.id}"]`).forEach((el) => el.remove());
+      this.overlay.dataset.stlOwner = root.id;
+      document.body.append(this.overlay);
+
       this.dom = {
         image: this.modal.querySelector('[data-image]'),
         title: this.modal.querySelector('[data-title]'),
@@ -334,17 +353,14 @@
         if (hotspot) this.open(hotspot.dataset.productId, hotspot);
       });
 
-      this.modal.addEventListener('click', (event) => {
-        // Close button, or a click outside the popup box (on the backdrop).
-        // Clicks on the dialog's own padding must NOT close it, so compare
-        // the pointer position with the dialog's rectangle.
-        const box = this.modal.getBoundingClientRect();
-        const outside = event.target === this.modal && (
-          event.clientX < box.left || event.clientX > box.right ||
-          event.clientY < box.top || event.clientY > box.bottom);
-        if (outside || event.target.closest('[data-close]')) this.close();
+      // Close: the X button or a click on the dark backdrop (not the card).
+      this.overlay.addEventListener('click', (event) => {
+        if (event.target === this.overlay || event.target.closest('[data-close]')) this.close();
       });
-      this.modal.addEventListener('close', () => this.onClosed());
+      // Close: Escape key.
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && this.isOpen) this.close();
+      });
 
       // Variant selection (delegated, covers buttons and selects).
       this.dom.options.addEventListener('click', (event) => {
@@ -388,29 +404,22 @@
       }
     }
 
-    /** Native modal when supported (focus trap + Esc); plain [open] otherwise. */
+    get isOpen() {
+      return this.overlay.classList.contains('is-open');
+    }
+
+    /** Show the overlay, lock page scroll and move focus into the popup. */
     showDialog() {
-      try {
-        if (typeof this.modal.showModal === 'function') this.modal.showModal();
-        else this.modal.setAttribute('open', '');
-      } catch (error) {
-        this.modal.setAttribute('open', ''); // already open / not connected
-      }
+      this.overlay.classList.add('is-open');
       document.documentElement.classList.add('stl-scroll-lock');
+      this.modal.focus();
     }
 
+    /** Hide the overlay and give focus back to the "+" that opened it. */
     close() {
-      if (typeof this.modal.close === 'function') this.modal.close();
-      else {
-        this.modal.removeAttribute('open');
-        this.onClosed();
-      }
-    }
-
-    /** Runs for every close path (button, backdrop, Esc). */
-    onClosed() {
+      this.overlay.classList.remove('is-open');
       document.documentElement.classList.remove('stl-scroll-lock');
-      this.state.trigger?.focus(); // return focus to the hotspot
+      this.state.trigger?.focus();
     }
 
     /* ------------------------------ Rendering ---------------------------- */
@@ -573,7 +582,7 @@
 
         await this.notifyCartUpdated();
         this.dom.addLabel.textContent = this.config.labels.added;
-        setTimeout(() => this.modal.open && this.close(), 900);
+        setTimeout(() => this.isOpen && this.close(), 900);
       } catch (error) {
         this.setError(error.message);
         this.setBusy(false);
