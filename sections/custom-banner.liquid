@@ -1,228 +1,243 @@
 {%- liquid
-  assign sid = section.id
-  assign btn_url = section.settings.button_link
+  assign s = section.settings
 -%}
 
 <style>
-  #CustomBanner-{{ sid }} {
-    --cb-bg: {{ section.settings.bg_color }};
-    --cb-heading: {{ section.settings.heading_color }};
-    --cb-text: {{ section.settings.text_color }};
-    --cb-btn-bg: {{ section.settings.button_bg }};
-    --cb-btn-text: {{ section.settings.button_text_color }};
-    --cb-btn-bg-hover: {{ section.settings.button_bg_hover }};
-    --cb-btn-text-hover: {{ section.settings.button_text_hover }};
-    --cb-strip-bg: {{ section.settings.strip_bg }};
-    --cb-strip-text: {{ section.settings.strip_text_color }};
-    --cb-overlay: {{ section.settings.overlay_color }};
-    --cb-overlay-opacity: {{ section.settings.overlay_opacity | divided_by: 100.0 }};
-    --cb-min-h: {{ section.settings.banner_height }}px;
-    --cb-min-h-m: {{ section.settings.banner_height_mobile }}px;
-    --cb-pt: {{ section.settings.padding_top }}px;
-    --cb-pb: {{ section.settings.padding_bottom }}px;
-    --cb-h-size: {{ section.settings.heading_size }}px;
-    --cb-h-size-m: {{ section.settings.heading_size_mobile }}px;
-    --cb-t-size: {{ section.settings.text_size }}px;
-    --cb-content-w: {{ section.settings.content_width }}px;
-    --cb-bg-size: {{ section.settings.bg_size }};
-    --cb-bg-pos: {{ section.settings.bg_position }};
-  }
-
-  #CustomBanner-{{ sid }} .cb {
+  .cb {
     position: relative;
-    background-color: var(--cb-bg);
+    background: var(--cb-bg);
     overflow: hidden;
   }
 
-  #CustomBanner-{{ sid }} .cb__bg {
+  .cb__bg,
+  .cb__overlay {
     position: absolute;
     inset: 0;
+  }
+
+  .cb__bg {
     z-index: 0;
   }
 
-  #CustomBanner-{{ sid }} .cb__bg img {
+  .cb__bg img,
+  .cb__bg svg {
     width: 100%;
     height: 100%;
-    object-fit: {{ section.settings.bg_fit }};
-    object-position: var(--cb-bg-pos);
     display: block;
+    object-fit: var(--cb-fit);
+    object-position: var(--cb-pos);
   }
 
-  #CustomBanner-{{ sid }} .cb__overlay {
-    position: absolute;
-    inset: 0;
+  .cb__overlay {
+    z-index: 1;
     background: var(--cb-overlay);
     opacity: var(--cb-overlay-opacity);
-    z-index: 1;
     pointer-events: none;
   }
 
-  #CustomBanner-{{ sid }} .cb__inner {
+  .cb__inner {
     position: relative;
     z-index: 2;
+    box-sizing: border-box;
+    display: flex;
+    align-items: var(--cb-v-align);
+    justify-content: var(--cb-h-align);
     min-height: var(--cb-min-h);
     padding: var(--cb-pt) 20px var(--cb-pb);
-    display: flex;
-    align-items: {{ section.settings.vertical_align }};
-    justify-content: {{ section.settings.horizontal_align }};
-    box-sizing: border-box;
   }
 
-  #CustomBanner-{{ sid }} .cb__content {
+  .cb__content {
     max-width: var(--cb-content-w);
     width: 100%;
-    text-align: {{ section.settings.text_align }};
-    {% if section.settings.show_content_box %}
-    background: {{ section.settings.content_box_bg }};
+    text-align: var(--cb-text-align);
+    {%- if s.show_content_box %}
+    background: {{ s.content_box_bg }};
     padding: 32px;
-    {% endif %}
+    {%- endif %}
   }
 
-  #CustomBanner-{{ sid }} .cb__heading {
+  .cb__heading {
     margin: 0 0 16px;
     font-size: var(--cb-h-size);
     line-height: 1.1;
-    font-weight: {{ section.settings.heading_weight }};
+    font-weight: {{ s.heading_weight }};
     color: var(--cb-heading);
-    {% if section.settings.heading_uppercase %}text-transform: uppercase;{% endif %}
+    text-transform: {% if s.heading_uppercase %}uppercase{% else %}none{% endif %};
   }
 
-  #CustomBanner-{{ sid }} .cb__text {
+  .cb__text {
     margin: 0 0 28px;
     font-size: var(--cb-t-size);
     line-height: 1.6;
     color: var(--cb-text);
   }
 
-  #CustomBanner-{{ sid }} .cb__text p { margin: 0 0 8px; }
-  #CustomBanner-{{ sid }} .cb__text p:last-child { margin-bottom: 0; }
+  .cb__text p {
+    margin: 0 0 8px;
+  }
 
-  #CustomBanner-{{ sid }} .cb__btn {
+  .cb__text p:last-child {
+    margin: 0;
+  }
+
+  .cb__btn {
     display: inline-flex;
     align-items: center;
     gap: 24px;
     padding: 16px 32px;
+    border: 1px solid currentColor;
+    border-radius: var(--cb-radius);
     background: var(--cb-btn-bg);
     color: var(--cb-btn-text);
     font-size: 14px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     text-decoration: none;
-    border: 1px solid var(--cb-btn-bg);
-    border-radius: {{ section.settings.button_radius }}px;
     transition: background 0.25s ease, color 0.25s ease;
   }
 
-  #CustomBanner-{{ sid }} .cb__btn:hover {
+  .cb__btn:hover {
     background: var(--cb-btn-bg-hover);
     color: var(--cb-btn-text-hover);
   }
 
-  #CustomBanner-{{ sid }} .cb__btn svg {
+  .cb__btn svg {
     width: 28px;
     height: 12px;
     transition: transform 0.25s ease;
   }
 
-  #CustomBanner-{{ sid }} .cb__btn:hover svg { transform: translateX(4px); }
+  .cb__btn:hover svg {
+    transform: translateX(4px);
+  }
 
-  #CustomBanner-{{ sid }} .cb__strip {
+  .cb__strip {
     position: relative;
     z-index: 2;
+    padding: 10px 20px;
     background: var(--cb-strip-bg);
     color: var(--cb-strip-text);
     text-align: center;
-    padding: 10px 20px;
     font-size: 14px;
     letter-spacing: 0.03em;
     text-transform: uppercase;
   }
 
-  #CustomBanner-{{ sid }} .cb__strip a { color: inherit; text-decoration: none; }
+  .cb__strip a {
+    color: inherit;
+    text-decoration: none;
+  }
 
   @media (max-width: 749px) {
-    #CustomBanner-{{ sid }} .cb__inner { min-height: var(--cb-min-h-m); }
-    #CustomBanner-{{ sid }} .cb__heading { font-size: var(--cb-h-size-m); }
-    #CustomBanner-{{ sid }} .cb__content { padding: {% if section.settings.show_content_box %}20px{% else %}0{% endif %}; }
-    #CustomBanner-{{ sid }} .cb__text { font-size: 15px; }
+    .cb__inner {
+      min-height: var(--cb-min-h-m);
+    }
+
+    .cb__heading {
+      font-size: var(--cb-h-size-m);
+    }
+
+    {%- if s.show_content_box %}
+    .cb__content {
+      padding: 20px;
+    }
+    {%- endif %}
   }
 </style>
 
-<section id="CustomBanner-{{ sid }}" class="custom-banner" data-section-id="{{ sid }}">
-  <div class="cb">
-
-    {%- if section.settings.bg_image != blank -%}
-      <div class="cb__bg">
-        {{
-          section.settings.bg_image
-          | image_url: width: 2400
-          | image_tag:
-            loading: 'lazy',
-            widths: '750, 1100, 1500, 2000, 2400',
-            sizes: '100vw',
-            alt: section.settings.bg_image.alt
-        }}
-      </div>
-    {%- endif -%}
-
-    <div class="cb__overlay"></div>
-
-    <div class="cb__inner">
-      <div class="cb__content">
-
-        {%- if section.settings.heading != blank -%}
-          <{{ section.settings.heading_tag }} class="cb__heading">
-            {{ section.settings.heading | escape }}
-          </{{ section.settings.heading_tag }}>
-        {%- endif -%}
-
-        {%- if section.settings.description != blank -%}
-          <div class="cb__text rte">
-            {{ section.settings.description }}
-          </div>
-        {%- endif -%}
-
-        {%- if section.settings.button_label != blank -%}
-          <a
-            class="cb__btn"
-            {% if btn_url != blank %}href="{{ btn_url }}"{% else %}role="link" aria-disabled="true"{% endif %}
-            {% if section.settings.button_new_tab %}target="_blank" rel="noopener"{% endif %}
-          >
-            <span>{{ section.settings.button_label | escape }}</span>
-            {%- if section.settings.show_arrow -%}
-              <svg viewBox="0 0 28 12" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
-                <path d="M0 6h26M21 1l5 5-5 5"/>
-              </svg>
-            {%- endif -%}
-          </a>
-        {%- endif -%}
-
-      </div>
+<div
+  class="cb"
+  style="
+    --cb-bg: {{ s.bg_color }};
+    --cb-heading: {{ s.heading_color }};
+    --cb-text: {{ s.text_color }};
+    --cb-btn-bg: {{ s.button_bg }};
+    --cb-btn-text: {{ s.button_text_color }};
+    --cb-btn-bg-hover: {{ s.button_bg_hover }};
+    --cb-btn-text-hover: {{ s.button_text_hover }};
+    --cb-strip-bg: {{ s.strip_bg }};
+    --cb-strip-text: {{ s.strip_text_color }};
+    --cb-overlay: {{ s.overlay_color }};
+    --cb-overlay-opacity: {{ s.overlay_opacity | divided_by: 100.0 }};
+    --cb-min-h: {{ s.banner_height }}px;
+    --cb-min-h-m: {{ s.banner_height_mobile }}px;
+    --cb-pt: {{ s.padding_top }}px;
+    --cb-pb: {{ s.padding_bottom }}px;
+    --cb-h-size: {{ s.heading_size }}px;
+    --cb-h-size-m: {{ s.heading_size_mobile }}px;
+    --cb-t-size: {{ s.text_size }}px;
+    --cb-content-w: {{ s.content_width }}px;
+    --cb-radius: {{ s.button_radius }}px;
+    --cb-fit: {{ s.bg_fit }};
+    --cb-pos: {{ s.bg_position }};
+    --cb-h-align: {{ s.horizontal_align }};
+    --cb-v-align: {{ s.vertical_align }};
+    --cb-text-align: {{ s.text_align }};
+  "
+>
+  {%- if s.bg_image != blank -%}
+    <div class="cb__bg">
+      {{
+        s.bg_image
+        | image_tag:
+          widths: '750, 1100, 1500, 2000, 2400',
+          sizes: '100vw',
+          alt: s.bg_image.alt,
+          loading: 'lazy'
+      }}
     </div>
+  {%- elsif request.design_mode -%}
+    <div class="cb__bg">
+      {{ 'lifestyle-1' | placeholder_svg_tag }}
+    </div>
+  {%- endif -%}
 
-    {%- if section.settings.strip_text != blank -%}
-      <div class="cb__strip">
-        {%- if section.settings.strip_link != blank -%}
-          <a href="{{ section.settings.strip_link }}">{{ section.settings.strip_text | escape }}</a>
-        {%- else -%}
-          {{ section.settings.strip_text | escape }}
-        {%- endif -%}
-      </div>
-    {%- endif -%}
+  <div class="cb__overlay"></div>
 
+  <div class="cb__inner page-width">
+    <div class="cb__content">
+      {%- if s.heading != blank -%}
+        <{{ s.heading_tag }} class="cb__heading">{{ s.heading | escape }}</{{ s.heading_tag }}>
+      {%- endif -%}
+
+      {%- if s.description != blank -%}
+        <div class="cb__text">{{ s.description }}</div>
+      {%- endif -%}
+
+      {%- if s.button_label != blank -%}
+        <a
+          class="cb__btn"
+          href="{{ s.button_link | default: '#' }}"
+          {% if s.button_new_tab %}target="_blank" rel="noopener"{% endif %}
+        >
+          <span>{{ s.button_label | escape }}</span>
+          {%- if s.show_arrow -%}
+            <svg viewBox="0 0 28 12" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+              <path d="M0 6h26M21 1l5 5-5 5"/>
+            </svg>
+          {%- endif -%}
+        </a>
+      {%- endif -%}
+    </div>
   </div>
-</section>
+
+  {%- if s.strip_text != blank -%}
+    <div class="cb__strip">
+      {%- if s.strip_link != blank -%}
+        <a href="{{ s.strip_link }}">{{ s.strip_text | escape }}</a>
+      {%- else -%}
+        {{ s.strip_text | escape }}
+      {%- endif -%}
+    </div>
+  {%- endif -%}
+</div>
 
 {% schema %}
 {
   "name": "Custom Banner",
   "tag": "section",
-  "class": "section-custom-banner",
   "settings": [
-    {
-      "type": "header",
-      "content": "Content"
-    },
+    { "type": "header", "content": "Content" },
     {
       "type": "text",
       "id": "heading",
@@ -247,10 +262,8 @@
       "label": "Description",
       "default": "<p>Discover Joy: Your Ultimate Holiday Gift Destination. Explore our curated selection and find the perfect gifts to delight your loved ones this holiday season.</p>"
     },
-    {
-      "type": "header",
-      "content": "Button"
-    },
+
+    { "type": "header", "content": "Button" },
     {
       "type": "text",
       "id": "button_label",
@@ -284,10 +297,8 @@
       "unit": "px",
       "default": 0
     },
-    {
-      "type": "header",
-      "content": "Bottom strip"
-    },
+
+    { "type": "header", "content": "Bottom strip" },
     {
       "type": "text",
       "id": "strip_text",
@@ -299,10 +310,8 @@
       "id": "strip_link",
       "label": "Strip link (optional)"
     },
-    {
-      "type": "header",
-      "content": "Background"
-    },
+
+    { "type": "header", "content": "Background" },
     {
       "type": "image_picker",
       "id": "bg_image",
@@ -333,16 +342,6 @@
       "default": "center center"
     },
     {
-      "type": "select",
-      "id": "bg_size",
-      "label": "Background size (reserved)",
-      "options": [
-        { "value": "cover", "label": "Cover" },
-        { "value": "contain", "label": "Contain" }
-      ],
-      "default": "cover"
-    },
-    {
       "type": "color",
       "id": "bg_color",
       "label": "Background color",
@@ -364,10 +363,8 @@
       "unit": "%",
       "default": 0
     },
-    {
-      "type": "header",
-      "content": "Layout"
-    },
+
+    { "type": "header", "content": "Layout" },
     {
       "type": "range",
       "id": "banner_height",
@@ -463,10 +460,8 @@
       "unit": "px",
       "default": 40
     },
-    {
-      "type": "header",
-      "content": "Typography"
-    },
+
+    { "type": "header", "content": "Typography" },
     {
       "type": "range",
       "id": "heading_size",
@@ -515,10 +510,8 @@
       "unit": "px",
       "default": 18
     },
-    {
-      "type": "header",
-      "content": "Colors"
-    },
+
+    { "type": "header", "content": "Colors" },
     {
       "type": "color",
       "id": "heading_color",
