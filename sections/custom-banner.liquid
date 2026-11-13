@@ -198,23 +198,23 @@
   "
 >
 
-{%- if s.bg_image != blank -%}
-  <div class="cb__bg">
-    {{
-      s.bg_image
-      | image_url: width: 2400
-      | image_tag:
-        widths: '750, 1100, 1500, 2000, 2400',
-        sizes: '100vw',
-        alt: s.bg_image.alt,
-        loading: 'lazy'
-    }}
-  </div>
-{%- elsif request.design_mode -%}
-  <div class="cb__bg">
-    {{ 'lifestyle-1' | placeholder_svg_tag }}
-  </div>
-{%- endif -%}
+    {%- if s.bg_image != blank -%}
+      <div class="cb__bg">
+        {{
+          s.bg_image
+          | image_url: width: 2400
+          | image_tag:
+            widths: '750, 1100, 1500, 2000, 2400',
+            sizes: '100vw',
+            alt: s.bg_image.alt,
+            loading: 'lazy'
+        }}
+      </div>
+    {%- elsif request.design_mode -%}
+      <div class="cb__bg">
+        {{ 'lifestyle-1' | placeholder_svg_tag }}
+      </div>
+    {%- endif -%}
 
 
   <div class="cb__overlay"></div>
