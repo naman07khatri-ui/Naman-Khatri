@@ -11,31 +11,6 @@
   "name": "t:sections.header.name",
   "type": "header",
   "sections": {
-    "announcement-bar": {
-      "type": "announcement-bar",
-      "blocks": {
-        "announcement-bar-0": {
-          "type": "announcement",
-          "settings": {
-            "text": "Welcome to our store",
-            "link": ""
-          }
-        }
-      },
-      "block_order": [
-        "announcement-bar-0"
-      ],
-      "disabled": true,
-      "settings": {
-        "auto_rotate": false,
-        "change_slides_speed": 5,
-        "color_scheme": "scheme-1",
-        "show_line_separator": true,
-        "show_social": false,
-        "enable_country_selector": false,
-        "enable_language_selector": false
-      }
-    },
     "header": {
       "type": "header",
       "disabled": true,
@@ -68,12 +43,16 @@
         "message": "Find the ideal gift for your loved ones.",
         "message_link": "",
         "message_size": 16,
-        "show_message_mobile": true,
         "button_label": "Choose Gift",
         "button_link": "",
         "button_new_tab": false,
         "show_arrow": true,
         "button_radius": 0,
+        "menu": "main-menu",
+        "drawer_width": 320,
+        "hamburger_color": "#000000",
+        "drawer_bg": "#ffffff",
+        "drawer_text_color": "#000000",
         "bg_color": "#f3f3f3",
         "border_color": "#e0e0e0",
         "logo_color": "#000000",
@@ -86,7 +65,6 @@
     }
   },
   "order": [
-    "announcement-bar",
     "header",
     "custom_header_qLXNBF"
   ]
